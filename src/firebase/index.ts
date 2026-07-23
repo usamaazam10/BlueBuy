@@ -17,7 +17,7 @@ export {
 export { getFirebaseApp, isFirebaseInitialized } from './app';
 export { getDb } from './firestore';
 export { getStorageInstance } from './storage';
-export { getFirebaseAuth } from './auth';
+export { getFirebaseAuth, signInWithEmail, signOutUser, observeAuthState } from './auth';
 
 export {
   AppError,

@@ -2,6 +2,7 @@
 
 import { Bell, Menu, Search } from 'lucide-react';
 import { ThemeToggle } from '@/components/common/theme-toggle';
+import { AccountMenu } from '@/components/auth/account-menu';
 
 /** Sticky admin top bar: mobile menu trigger, quick search, theme, account. */
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
@@ -40,15 +41,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           <span className="bg-brand absolute top-2 right-2 size-1.5 rounded-full" />
         </button>
         <ThemeToggle className="size-9 rounded-lg" />
-        <button
-          type="button"
-          aria-label="Account menu"
-          className="ml-1 flex items-center gap-2 rounded-lg transition-colors"
-        >
-          <span className="from-brand flex size-8 items-center justify-center rounded-full bg-gradient-to-br to-violet-500 text-xs font-semibold text-white">
-            AB
-          </span>
-        </button>
+        <AccountMenu />
       </div>
     </header>
   );

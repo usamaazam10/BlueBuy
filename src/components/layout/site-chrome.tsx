@@ -6,7 +6,8 @@ import { Footer } from '@/components/layout/footer';
 
 /**
  * Renders the public storefront chrome (skip link, sticky navbar, footer) around
- * page content — except under `/admin`, which ships its own full-screen shell.
+ * page content — except under `/admin`, which ships its own full-screen shell,
+ * and `/login`, which is a standalone full-screen auth screen.
  *
  * `children` are passed through untouched, so server components rendered by the
  * route segments keep rendering on the server; only this thin wrapper is a
@@ -14,9 +15,9 @@ import { Footer } from '@/components/layout/footer';
  */
 export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAdmin = pathname?.startsWith('/admin');
+  const isStandalone = pathname?.startsWith('/admin') || pathname?.startsWith('/login');
 
-  if (isAdmin) return <>{children}</>;
+  if (isStandalone) return <>{children}</>;
 
   return (
     <>

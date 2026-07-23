@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { AdminShell } from '@/components/admin/layout/admin-shell';
+import { AuthProvider } from '@/lib/auth';
+import { ProtectedRoute } from '@/components/auth/protected-route';
 
 export const metadata: Metadata = {
   title: {
@@ -10,6 +12,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * Every `/admin/*` route is gated here: `AuthProvider` resolves the session and
+ * `ProtectedRoute` redirects guests to `/login` before the shell renders, so
+ * new admin pages are protected automatically with no per-page wiring.
+ */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AuthProvider>
+      <ProtectedRoute>
+        <AdminShell>{children}</AdminShell>
+      </ProtectedRoute>
+    </AuthProvider>
+  );
 }
