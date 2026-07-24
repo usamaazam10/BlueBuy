@@ -2,62 +2,30 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Check, Plus, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/admin/ui/breadcrumb';
 import { Field, Input, Select, Switch, Label } from '@/components/admin/ui/control';
 import { RichTextEditor } from '@/components/admin/ui/rich-text-editor';
-import { ImageUploader, type UploaderImage } from '@/components/admin/ui/image-uploader';
-import { ProductMedia } from '@/components/product/product-media';
+import { ImageUploader, type GalleryImage } from '@/components/admin/ui/image-uploader';
 import { ADMIN_CATEGORIES } from '@/data/admin/categories';
 import { BRANDS } from '@/data/admin/brands';
-import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/toast';
+import { ProductRepository } from '@/repositories';
+import { uploadImage, CloudinaryError, type CloudinaryUploadResult } from '@/services/cloudinary';
+import {
+  formToProductInput,
+  galleryToProductImages,
+  validateProductForm,
+  type ProductFormErrors,
+} from './product-mappers';
+import { EMPTY_PRODUCT, type ProductFormValues } from './product-form.types';
 
-export interface ProductSpecRow {
-  id: string;
-  label: string;
-  value: string;
-}
+export { EMPTY_PRODUCT };
+export type { ProductFormValues };
 
-export interface ProductFormValues {
-  title: string;
-  slug: string;
-  shortDescription: string;
-  description: string;
-  price: string;
-  salePrice: string;
-  stock: string;
-  categorySlug: string;
-  brandId: string;
-  featured: boolean;
-  active: boolean;
-  tags: string[];
-  specs: ProductSpecRow[];
-  seoTitle: string;
-  seoDescription: string;
-  metaKeywords: string;
-  images: UploaderImage[];
-}
-
-export const EMPTY_PRODUCT: ProductFormValues = {
-  title: '',
-  slug: '',
-  shortDescription: '',
-  description: '',
-  price: '',
-  salePrice: '',
-  stock: '',
-  categorySlug: ADMIN_CATEGORIES[0]?.slug ?? '',
-  brandId: BRANDS[0]?.id ?? '',
-  featured: false,
-  active: true,
-  tags: [],
-  specs: [{ id: 'spec-0', label: '', value: '' }],
-  seoTitle: '',
-  seoDescription: '',
-  metaKeywords: '',
-  images: [],
-};
+const CLOUDINARY_FOLDER = 'bluebuy/products';
 
 function slugify(value: string): string {
   return value
@@ -66,6 +34,15 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
+}
+
+/** Immutably patch a gallery image by id. */
+function patchImage(
+  images: GalleryImage[],
+  id: string,
+  patch: Partial<GalleryImage>
+): GalleryImage[] {
+  return images.map((image) => (image.id === id ? { ...image, ...patch } : image));
 }
 
 /** A titled panel used to group form fields. */
@@ -92,17 +69,27 @@ function Section({
 interface ProductFormProps {
   mode: 'create' | 'edit';
   initial: ProductFormValues;
-  productAccent?: string;
+  /** Firestore document id — required in edit mode. */
+  productId?: string;
 }
 
-export function ProductForm({ mode, initial, productAccent = '#6366f1' }: ProductFormProps) {
-  const [values, setValues] = React.useState<ProductFormValues>(initial);
+export function ProductForm({ mode, initial, productId }: ProductFormProps) {
+  const router = useRouter();
+  const toast = useToast();
+
+  const [values, setValues] = React.useState<ProductFormValues>(() => ({
+    ...initial,
+    categorySlug: initial.categorySlug || ADMIN_CATEGORIES[0]?.slug || '',
+    brandId: initial.brandId || BRANDS[0]?.id || '',
+  }));
   const [slugEdited, setSlugEdited] = React.useState(mode === 'edit');
   const [tagDraft, setTagDraft] = React.useState('');
-  const [saved, setSaved] = React.useState<string | null>(null);
+  const [errors, setErrors] = React.useState<ProductFormErrors>({});
+  const [submitting, setSubmitting] = React.useState(false);
 
   function set<K extends keyof ProductFormValues>(key: K, value: ProductFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => (key in prev ? { ...prev, [key]: undefined } : prev));
   }
 
   // Auto-generate slug from the title until the user edits the slug directly.
@@ -112,6 +99,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
       title,
       slug: slugEdited ? prev.slug : slugify(title),
     }));
+    setErrors((prev) => ({ ...prev, title: undefined, slug: undefined }));
   }
 
   function addTag(raw: string) {
@@ -120,7 +108,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
     set('tags', [...values.tags, tag]);
   }
 
-  function updateSpec(id: string, patch: Partial<ProductSpecRow>) {
+  function updateSpec(id: string, patch: Partial<ProductFormValues['specs'][number]>) {
     set(
       'specs',
       values.specs.map((spec) => (spec.id === id ? { ...spec, ...patch } : spec))
@@ -129,17 +117,113 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
 
   const thumbnail = values.images[0];
 
-  // UI-only: no persistence. Surface an ephemeral confirmation instead.
-  function handleSubmit(intent: 'draft' | 'publish') {
-    setValues((prev) => ({ ...prev, active: intent === 'publish' }));
-    setSaved(intent === 'publish' ? 'Product published' : 'Draft saved');
-    window.setTimeout(() => setSaved(null), 2500);
+  /**
+   * Publish/save flow: validate → upload pending images to Cloudinary (with
+   * progress) → persist the product via the repository → toast + redirect.
+   */
+  async function handleSubmit(intent: 'draft' | 'publish') {
+    const nextValues = { ...values, active: intent === 'publish' };
+
+    // 1) Fail fast on client-side field errors.
+    const fieldErrors = validateProductForm(nextValues);
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      toast.error('Please fix the highlighted fields.');
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
+
+    try {
+      // 2) Guard against duplicate slugs before doing any upload work.
+      const slug = nextValues.slug.trim();
+      if (await ProductRepository.slugExists(slug, productId)) {
+        setErrors({ slug: 'That slug is already in use.' });
+        toast.error('Slug already in use', 'Choose a different slug and try again.');
+        return;
+      }
+
+      // 3) Upload any pending (new) images, reporting per-image progress. Fresh
+      //    results are tracked locally so the gallery isn't built from stale state.
+      const uploadedById = new Map<string, CloudinaryUploadResult>();
+      const pending = values.images.filter((image) => image.file && image.status !== 'uploaded');
+      for (const image of pending) {
+        if (!image.file) continue;
+        setValues((prev) => ({
+          ...prev,
+          images: patchImage(prev.images, image.id, {
+            status: 'uploading',
+            progress: 0,
+            error: undefined,
+          }),
+        }));
+        try {
+          const result = await uploadImage(image.file, {
+            folder: CLOUDINARY_FOLDER,
+            onProgress: (percent) =>
+              setValues((prev) => ({
+                ...prev,
+                images: patchImage(prev.images, image.id, { progress: percent }),
+              })),
+          });
+          uploadedById.set(image.id, result);
+          setValues((prev) => ({
+            ...prev,
+            images: patchImage(prev.images, image.id, {
+              status: 'uploaded',
+              uploaded: result,
+              progress: 100,
+            }),
+          }));
+        } catch (error) {
+          const message =
+            error instanceof CloudinaryError ? error.message : 'The image could not be uploaded.';
+          setValues((prev) => ({
+            ...prev,
+            images: patchImage(prev.images, image.id, { status: 'error', error: message }),
+          }));
+          throw new Error(message);
+        }
+      }
+
+      // 4) Assemble the gallery in display order, merging just-uploaded results
+      //    with any images that were already on Cloudinary (edit mode).
+      const finalImages: GalleryImage[] = values.images.map((image) => {
+        const fresh = uploadedById.get(image.id);
+        return fresh
+          ? { ...image, uploaded: fresh, status: 'uploaded' as const, progress: 100 }
+          : image;
+      });
+      const gallery = galleryToProductImages(finalImages);
+      const payload = formToProductInput(nextValues, gallery);
+
+      // 5) Persist through the repository (never Firestore directly).
+      if (mode === 'edit' && productId) {
+        await ProductRepository.update(productId, payload);
+      } else {
+        await ProductRepository.create(payload);
+      }
+
+      toast.success(
+        intent === 'publish' ? 'Product published' : 'Draft saved',
+        `“${nextValues.title}” was saved successfully.`
+      );
+      router.push('/admin/products');
+      router.refresh();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+      toast.error('Could not save product', message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
       aria-label={mode === 'create' ? 'Create product' : 'Edit product'}
+      aria-busy={submitting}
     >
       {/* Header / sticky action bar */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -156,17 +240,16 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {saved && (
-            <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-              <Check className="size-4" /> {saved}
-            </span>
-          )}
+          <Button asChild variant="ghost" size="sm" className="rounded-lg" disabled={submitting}>
+            <Link href="/admin/products">Cancel</Link>
+          </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="rounded-lg"
             onClick={() => handleSubmit('draft')}
+            disabled={submitting}
           >
             Save draft
           </Button>
@@ -176,8 +259,10 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
             size="sm"
             className="rounded-lg"
             onClick={() => handleSubmit('publish')}
+            disabled={submitting}
           >
-            Publish
+            {submitting && <Loader2 className="size-4 animate-spin" />}
+            {submitting ? 'Publishing…' : 'Publish'}
           </Button>
         </div>
       </div>
@@ -186,15 +271,16 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
         {/* Main column */}
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Section title="General">
-            <Field label="Title" htmlFor="title" required>
+            <Field label="Title" htmlFor="title" required error={errors.title}>
               <Input
                 id="title"
                 value={values.title}
                 onChange={(e) => onTitleChange(e.target.value)}
                 placeholder="e.g. Aura Wireless Headphones"
+                disabled={submitting}
               />
             </Field>
-            <Field label="Slug" htmlFor="slug" hint="Used in the product URL.">
+            <Field label="Slug" htmlFor="slug" hint="Used in the product URL." error={errors.slug}>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-sm">/product/</span>
                 <Input
@@ -205,6 +291,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                     set('slug', slugify(e.target.value));
                   }}
                   placeholder="aura-wireless-headphones"
+                  disabled={submitting}
                 />
               </div>
             </Field>
@@ -218,6 +305,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 value={values.shortDescription}
                 onChange={(e) => set('shortDescription', e.target.value)}
                 placeholder="Over-ear headphones with adaptive noise cancellation."
+                disabled={submitting}
               />
             </Field>
             <Field label="Description" htmlFor="description">
@@ -234,13 +322,14 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
             <ImageUploader
               images={values.images}
               onChange={(images) => set('images', images)}
-              accent={productAccent}
+              onError={(message) => toast.error(message)}
+              disabled={submitting}
             />
           </Section>
 
           <Section title="Pricing">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Price" htmlFor="price" required>
+              <Field label="Price" htmlFor="price" required error={errors.price}>
                 <div className="relative">
                   <span className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-sm">
                     $
@@ -255,10 +344,16 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                     onChange={(e) => set('price', e.target.value)}
                     placeholder="0.00"
                     className="pl-7"
+                    disabled={submitting}
                   />
                 </div>
               </Field>
-              <Field label="Sale price" htmlFor="salePrice" hint="Leave blank if not on sale.">
+              <Field
+                label="Sale price"
+                htmlFor="salePrice"
+                hint="Leave blank if not on sale."
+                error={errors.salePrice}
+              >
                 <div className="relative">
                   <span className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-sm">
                     $
@@ -273,6 +368,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                     onChange={(e) => set('salePrice', e.target.value)}
                     placeholder="0.00"
                     className="pl-7"
+                    disabled={submitting}
                   />
                 </div>
               </Field>
@@ -292,6 +388,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                     onChange={(e) => updateSpec(spec.id, { label: e.target.value })}
                     placeholder="Label (e.g. Battery)"
                     className="flex-1"
+                    disabled={submitting}
                   />
                   <Input
                     aria-label="Specification value"
@@ -299,6 +396,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                     onChange={(e) => updateSpec(spec.id, { value: e.target.value })}
                     placeholder="Value (e.g. 40 hours)"
                     className="flex-1"
+                    disabled={submitting}
                   />
                   <button
                     type="button"
@@ -349,6 +447,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 onChange={(e) => set('seoTitle', e.target.value)}
                 maxLength={70}
                 placeholder="Aura Wireless Headphones | BlueBuy"
+                disabled={submitting}
               />
             </Field>
             <Field
@@ -362,6 +461,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 onChange={(e) => set('seoDescription', e.target.value)}
                 maxLength={180}
                 placeholder="Premium over-ear headphones with adaptive noise cancellation…"
+                disabled={submitting}
               />
             </Field>
             <Field label="Meta keywords" htmlFor="metaKeywords" hint="Comma-separated.">
@@ -370,6 +470,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 value={values.metaKeywords}
                 onChange={(e) => set('metaKeywords', e.target.value)}
                 placeholder="headphones, wireless, noise cancelling"
+                disabled={submitting}
               />
             </Field>
           </Section>
@@ -387,6 +488,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 id="active"
                 checked={values.active}
                 onCheckedChange={(v) => set('active', v)}
+                disabled={submitting}
                 aria-label="Active"
               />
             </div>
@@ -400,17 +502,19 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 id="featured"
                 checked={values.featured}
                 onCheckedChange={(v) => set('featured', v)}
+                disabled={submitting}
                 aria-label="Featured"
               />
             </div>
           </Section>
 
           <Section title="Organization">
-            <Field label="Category" htmlFor="category">
+            <Field label="Category" htmlFor="category" error={errors.categorySlug}>
               <Select
                 id="category"
                 value={values.categorySlug}
                 onChange={(e) => set('categorySlug', e.target.value)}
+                disabled={submitting}
               >
                 {ADMIN_CATEGORIES.map((c) => (
                   <option key={c.id} value={c.slug}>
@@ -419,11 +523,12 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 ))}
               </Select>
             </Field>
-            <Field label="Brand" htmlFor="brand">
+            <Field label="Brand" htmlFor="brand" error={errors.brandId}>
               <Select
                 id="brand"
                 value={values.brandId}
                 onChange={(e) => set('brandId', e.target.value)}
+                disabled={submitting}
               >
                 {BRANDS.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -441,6 +546,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                 value={values.stock}
                 onChange={(e) => set('stock', e.target.value)}
                 placeholder="0"
+                disabled={submitting}
               />
             </Field>
             <Field label="Tags" htmlFor="tags" hint="Press Enter to add.">
@@ -456,6 +562,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
                   }
                 }}
                 placeholder="Add a tag…"
+                disabled={submitting}
               />
               {values.tags.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1.5">
@@ -486,16 +593,13 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
           </Section>
 
           <Section title="Thumbnail">
-            <div
-              className={cn(
-                'border-border bg-muted/30 relative aspect-square overflow-hidden rounded-lg border'
-              )}
-            >
+            <div className="border-border bg-muted/30 relative aspect-square overflow-hidden rounded-lg border">
               {thumbnail ? (
-                <ProductMedia
-                  seed={thumbnail.seed}
-                  accent={thumbnail.accent}
-                  className="h-full w-full"
+                // eslint-disable-next-line @next/next/no-img-element -- object URL / remote Cloudinary src under static export
+                <img
+                  src={thumbnail.previewUrl}
+                  alt={thumbnail.alt}
+                  className="h-full w-full object-cover"
                 />
               ) : (
                 <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-1 text-center text-xs">
@@ -510,7 +614,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
 
       {/* Footer actions (mirrors the top bar for long forms) */}
       <div className="border-border mt-6 flex items-center justify-end gap-2 border-t pt-6">
-        <Button asChild variant="ghost" size="sm" className="rounded-lg">
+        <Button asChild variant="ghost" size="sm" className="rounded-lg" disabled={submitting}>
           <Link href="/admin/products">Cancel</Link>
         </Button>
         <Button
@@ -519,6 +623,7 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
           size="sm"
           className="rounded-lg"
           onClick={() => handleSubmit('draft')}
+          disabled={submitting}
         >
           Save draft
         </Button>
@@ -528,8 +633,10 @@ export function ProductForm({ mode, initial, productAccent = '#6366f1' }: Produc
           size="sm"
           className="rounded-lg"
           onClick={() => handleSubmit('publish')}
+          disabled={submitting}
         >
-          Publish
+          {submitting && <Loader2 className="size-4 animate-spin" />}
+          {submitting ? 'Publishing…' : 'Publish'}
         </Button>
       </div>
     </form>

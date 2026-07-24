@@ -49,21 +49,40 @@ export interface BaseDocument {
   updatedAt: FirestoreDate;
 }
 
-/** A single product image/media reference. */
+/**
+ * A single product image, backed by Cloudinary.
+ *
+ * The fields mirror the metadata Cloudinary returns from an upload so an image
+ * can be re-derived, transformed, or (via a backend) deleted later without a
+ * second round-trip. Media is stored on Cloudinary — not Firebase Storage — so
+ * there is no `storagePath`; `publicId` is the Cloudinary handle instead.
+ */
 export interface ProductImage {
   id: string;
-  /** Public download URL (or Storage path resolved to a URL). */
+  /** Cloudinary `secure_url` — the canonical HTTPS delivery URL. */
   url: string;
-  /** Storage object path, e.g. `products/{slug}/{id}.jpg`. */
-  storagePath?: string;
+  /** Cloudinary `public_id` — required for transformations + future deletion. */
+  publicId: string;
   /** Accessible alt text. */
   alt: string;
-  width?: number;
-  height?: number;
+  /** Intrinsic width in pixels (Cloudinary `width`). */
+  width: number;
+  /** Intrinsic height in pixels (Cloudinary `height`). */
+  height: number;
+  /** Delivered format, e.g. `"jpg"`, `"png"`, `"webp"` (Cloudinary `format`). */
+  format: string;
+  /** File size in bytes (Cloudinary `bytes`). */
+  bytes: number;
   /** Ordering within the gallery (ascending). */
   sortOrder: number;
-  /** Whether this is the primary/hero image. */
+  /** Whether this is the primary/hero image (mirrors {@link Product.thumbnail}). */
   isPrimary: boolean;
+}
+
+/** A single technical specification row shown on the product page. */
+export interface ProductSpecification {
+  label: string;
+  value: string;
 }
 
 /** Product document — collection: `products`. */
@@ -82,8 +101,9 @@ export interface Product extends BaseDocument {
   categoryId: string;
   /** Reference → brands.id */
   brandId: string;
-  images: ProductImage[];
-  /** Convenience URL for list/card views (usually the primary image). */
+  /** Ordered gallery of Cloudinary-backed images. */
+  gallery: ProductImage[];
+  /** Convenience URL for list/card views (the primary gallery image). */
   thumbnail: string;
   /** Aggregate rating 0–5, denormalised for fast reads. */
   rating: number;
@@ -92,9 +112,17 @@ export interface Product extends BaseDocument {
   stock: number;
   /** Free-form tags for search/filtering. */
   tags: string[];
+  /** Technical specification rows (label/value pairs). */
+  specifications: ProductSpecification[];
   featured: boolean;
   /** Soft on/off switch; inactive products are hidden from storefront reads. */
   active: boolean;
+  /** SEO — page title override; falls back to `title` when empty. */
+  seoTitle: string;
+  /** SEO — meta description; falls back to `shortDescription` when empty. */
+  seoDescription: string;
+  /** SEO — meta keywords. */
+  metaKeywords: string[];
 }
 
 /** Category document — collection: `categories`. Supports an optional tree. */

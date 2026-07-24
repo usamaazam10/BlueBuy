@@ -92,25 +92,29 @@ export function validateImageFile(file: File): ValidationResult {
  * Upload a single image to Cloudinary via the unsigned preset.
  *
  * Validates the file first (format + size), then POSTs multipart form data to
- * the upload endpoint. Resolves with the normalised {@link CloudinaryUploadResult}.
+ * the upload endpoint. Uses `XMLHttpRequest` (not `fetch`) so real upload
+ * progress can be reported via `options.onProgress`. Resolves with the
+ * normalised {@link CloudinaryUploadResult}.
  *
  * @throws {CloudinaryError} with a user-safe `message` on any failure —
- *   missing config, validation, network, or a non-2xx response.
+ *   missing config, validation, network, abort, or a non-2xx response.
  */
-export async function uploadImage(
+export function uploadImage(
   file: File,
   options: UploadImageOptions = {}
 ): Promise<CloudinaryUploadResult> {
   if (!isCloudinaryConfigured()) {
-    throw new CloudinaryError(
-      'not-configured',
-      'Image uploads are not configured yet. Please try again later.'
+    return Promise.reject(
+      new CloudinaryError(
+        'not-configured',
+        'Image uploads are not configured yet. Please try again later.'
+      )
     );
   }
 
   const validation = validateImageFile(file);
   if (!validation.valid) {
-    throw new CloudinaryError('validation', validation.error);
+    return Promise.reject(new CloudinaryError('validation', validation.error));
   }
 
   const formData = new FormData();
@@ -119,44 +123,117 @@ export async function uploadImage(
   if (options.folder) formData.append('folder', options.folder);
   if (options.tags?.length) formData.append('tags', options.tags.join(','));
 
-  let response: Response;
-  try {
-    response = await fetch(CLOUDINARY_UPLOAD_URL, {
-      method: 'POST',
-      body: formData,
-      signal: options.signal,
-    });
-  } catch {
-    throw new CloudinaryError(
-      'network',
-      'Could not reach the image server. Check your connection and try again.'
-    );
-  }
+  return new Promise<CloudinaryUploadResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', CLOUDINARY_UPLOAD_URL, true);
 
-  if (!response.ok) {
-    // Cloudinary returns { error: { message } } on failure.
-    let detail = '';
-    try {
-      const body = (await response.json()) as { error?: { message?: string } };
-      detail = body?.error?.message ?? '';
-    } catch {
-      /* ignore — fall back to the generic message */
+    // Progress events → integer percentage.
+    if (options.onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          options.onProgress?.(Math.round((event.loaded / event.total) * 100));
+        }
+      };
     }
-    throw new CloudinaryError(
-      'upload-failed',
-      detail || 'The image could not be uploaded. Please try again.'
-    );
+
+    // Support cancellation via AbortSignal.
+    const signal = options.signal;
+    const onAbort = () => xhr.abort();
+    if (signal) {
+      if (signal.aborted) {
+        reject(new CloudinaryError('network', 'Upload cancelled.'));
+        return;
+      }
+      signal.addEventListener('abort', onAbort);
+    }
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+
+    xhr.onload = () => {
+      cleanup();
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText) as CloudinaryUploadResult;
+          options.onProgress?.(100);
+          resolve({
+            secure_url: data.secure_url,
+            public_id: data.public_id,
+            width: data.width,
+            height: data.height,
+            format: data.format,
+            bytes: data.bytes,
+          });
+        } catch {
+          reject(
+            new CloudinaryError(
+              'upload-failed',
+              'The image server returned an unexpected response.'
+            )
+          );
+        }
+        return;
+      }
+      // Cloudinary returns { error: { message } } on failure.
+      let detail = '';
+      try {
+        detail =
+          (JSON.parse(xhr.responseText) as { error?: { message?: string } })?.error?.message ?? '';
+      } catch {
+        /* ignore — fall back to the generic message */
+      }
+      reject(
+        new CloudinaryError(
+          'upload-failed',
+          detail || 'The image could not be uploaded. Please try again.'
+        )
+      );
+    };
+
+    xhr.onerror = () => {
+      cleanup();
+      reject(
+        new CloudinaryError(
+          'network',
+          'Could not reach the image server. Check your connection and try again.'
+        )
+      );
+    };
+
+    xhr.onabort = () => {
+      cleanup();
+      reject(new CloudinaryError('network', 'Upload cancelled.'));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Upload several images, reporting overall progress (0–100) across the batch.
+ * Uploads run sequentially so aggregate progress is smooth and the target
+ * account isn't hit with a burst of parallel requests. Rejects on the first
+ * failure with a {@link CloudinaryError}.
+ */
+export async function uploadImages(
+  files: File[],
+  options: UploadImageOptions & { onOverallProgress?: (percent: number) => void } = {}
+): Promise<CloudinaryUploadResult[]> {
+  const { onOverallProgress, ...perFile } = options;
+  const results: CloudinaryUploadResult[] = [];
+  const total = files.length;
+
+  for (let index = 0; index < total; index += 1) {
+    const result = await uploadImage(files[index], {
+      ...perFile,
+      onProgress: (percent) => {
+        perFile.onProgress?.(percent);
+        // Overall = completed files + fraction of the in-flight file.
+        onOverallProgress?.(Math.round(((index + percent / 100) / total) * 100));
+      },
+    });
+    results.push(result);
   }
 
-  const data = (await response.json()) as CloudinaryUploadResult;
-  return {
-    secure_url: data.secure_url,
-    public_id: data.public_id,
-    width: data.width,
-    height: data.height,
-    format: data.format,
-    bytes: data.bytes,
-  };
+  return results;
 }
 
 // --- Delivery URL builders ----------------------------------------------------
@@ -257,6 +334,7 @@ export async function deleteImage(_publicId: string): Promise<never> {
 /** Grouped export mirroring the other `*.service.ts` modules in this folder. */
 export const cloudinaryService = {
   uploadImage,
+  uploadImages,
   validateImageFile,
   optimizeImageUrl,
   thumbnailUrl,

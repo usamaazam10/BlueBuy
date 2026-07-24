@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Package, Pencil, Search, Trash2, X } from 'lucide-react';
+import { AlertCircle, Loader2, Package, Pencil, Search, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProductMedia } from '@/components/product/product-media';
 import { DataTable, type Column, type SortState } from '@/components/admin/ui/data-table';
@@ -12,12 +12,14 @@ import { StatusBadge, StockBadge } from '@/components/admin/ui/status-badge';
 import { EmptyState } from '@/components/admin/ui/empty-state';
 import { Pagination } from '@/components/admin/ui/pagination';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
-import { ADMIN_PRODUCTS, LOW_STOCK_THRESHOLD } from '@/data/admin/products';
-import { ADMIN_CATEGORIES } from '@/data/admin/categories';
+import { useToast } from '@/components/ui/toast';
+import { ProductRepository } from '@/repositories';
+import { LOW_STOCK_THRESHOLD } from '@/data/admin/products';
+import { ADMIN_CATEGORIES, getAdminCategoryBySlug } from '@/data/admin/categories';
 import { getBrandById } from '@/data/admin/brands';
-import { getAdminCategoryBySlug } from '@/data/admin/categories';
 import { formatPrice } from '@/lib/format';
-import type { AdminProduct, ProductStatus } from '@/data/admin/types';
+import type { FirestoreDate, Product } from '@/types/models';
+import type { ProductStatus } from '@/data/admin/types';
 
 const PAGE_SIZE = 8;
 
@@ -29,8 +31,56 @@ const SORT_PRESETS: Record<string, SortState> = {
   'stock-asc': { key: 'stock', dir: 'asc' },
 };
 
+/** A flattened product row for the table (derived from the Firestore model). */
+interface ProductRow {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  brandId: string;
+  price: number;
+  compareAtPrice?: number;
+  stock: number;
+  status: ProductStatus;
+  featured: boolean;
+  thumbnailUrl: string;
+  updatedAt: string;
+}
+
+/** Convert a Firestore timestamp field to a sortable ISO string. */
+function toISO(date: FirestoreDate): string {
+  if (!date) return new Date(0).toISOString();
+  if (date instanceof Date) return date.toISOString();
+  // Firestore Timestamp
+  return date.toDate().toISOString();
+}
+
+/** Map a category id back to its slug (for filter/display parity). */
+function categorySlugFromId(categoryId: string): string {
+  return ADMIN_CATEGORIES.find((c) => c.id === categoryId)?.slug ?? categoryId;
+}
+
+/** Map a stored `Product` into the flattened row shape the table renders. */
+function toRow(product: Product): ProductRow {
+  const onSale = product.salePrice != null && product.salePrice < product.price;
+  return {
+    id: product.id,
+    slug: product.slug,
+    title: product.title,
+    category: categorySlugFromId(product.categoryId),
+    brandId: product.brandId,
+    price: onSale ? (product.salePrice as number) : product.price,
+    compareAtPrice: onSale ? product.price : undefined,
+    stock: product.stock,
+    status: product.active ? 'active' : 'draft',
+    featured: product.featured,
+    thumbnailUrl: product.thumbnail || product.gallery[0]?.url || '',
+    updatedAt: toISO(product.updatedAt),
+  };
+}
+
 /** Extracts a comparable value for a given sort key. */
-function sortValue(product: AdminProduct, key: string): string | number {
+function sortValue(product: ProductRow, key: string): string | number {
   switch (key) {
     case 'price':
       return product.price;
@@ -51,13 +101,41 @@ function sortValue(product: AdminProduct, key: string): string | number {
 
 export function ProductsBrowser() {
   const router = useRouter();
-  const [products, setProducts] = React.useState<AdminProduct[]>(ADMIN_PRODUCTS);
+  const toast = useToast();
+
+  const [products, setProducts] = React.useState<ProductRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
   const [search, setSearch] = React.useState('');
   const [category, setCategory] = React.useState('all');
   const [status, setStatus] = React.useState<'all' | ProductStatus>('all');
   const [sort, setSort] = React.useState<SortState>({ key: 'updatedAt', dir: 'desc' });
   const [page, setPage] = React.useState(1);
-  const [toDelete, setToDelete] = React.useState<AdminProduct | null>(null);
+  const [toDelete, setToDelete] = React.useState<ProductRow | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  // Load products from Firestore (via the repository — never Firestore directly).
+  React.useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError(null);
+    ProductRepository.list()
+      .then((list) => {
+        if (!active) return;
+        setProducts(list.map(toRow));
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setLoadError(error instanceof Error ? error.message : 'Could not load products.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Reset to the first page whenever the result set changes.
   React.useEffect(() => {
@@ -98,14 +176,35 @@ export function ProductsBrowser() {
     setStatus('all');
   };
 
-  const columns: Column<AdminProduct>[] = [
+  async function handleDelete(product: ProductRow) {
+    setDeletingId(product.id);
+    try {
+      // Deletes the Firestore document only; Cloudinary assets are left in place
+      // on purpose (secure deletion needs a backend). See ProductRepository.remove.
+      await ProductRepository.remove(product.id);
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+      toast.success('Product deleted', `“${product.title}” was removed.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not delete the product.';
+      toast.error('Delete failed', message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const columns: Column<ProductRow>[] = [
     {
       key: 'image',
       header: '',
       className: 'w-14',
       cell: (p) => (
         <span className="border-border block size-10 overflow-hidden rounded-lg border">
-          <ProductMedia seed={p.images[0] ?? p.slug} accent={p.accent} className="h-full w-full" />
+          {p.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary src under static export
+            <img src={p.thumbnailUrl} alt={p.title} className="h-full w-full object-cover" />
+          ) : (
+            <ProductMedia seed={p.slug} accent="#6366f1" className="h-full w-full" />
+          )}
         </span>
       ),
     },
@@ -187,15 +286,51 @@ export function ProductsBrowser() {
           <button
             type="button"
             onClick={() => setToDelete(p)}
+            disabled={deletingId === p.id}
             aria-label={`Delete ${p.title}`}
-            className="text-muted-foreground hover:bg-destructive/10 flex size-8 items-center justify-center rounded-lg transition-colors hover:text-rose-600 dark:hover:text-rose-400"
+            className="text-muted-foreground hover:bg-destructive/10 flex size-8 items-center justify-center rounded-lg transition-colors hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
           >
-            <Trash2 className="size-4" />
+            {deletingId === p.id ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
           </button>
         </div>
       ),
     },
   ];
+
+  // Initial load spinner.
+  if (loading) {
+    return (
+      <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading products…</p>
+      </div>
+    );
+  }
+
+  // Load failure (e.g. Firebase not configured or permission denied).
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title="Couldn’t load products"
+        description={loadError}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => router.refresh()}
+          >
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -318,10 +453,10 @@ export function ProductsBrowser() {
         open={toDelete !== null}
         onClose={() => setToDelete(null)}
         onConfirm={() => {
-          if (toDelete) setProducts((prev) => prev.filter((p) => p.id !== toDelete.id));
+          if (toDelete) void handleDelete(toDelete);
         }}
         title={`Delete ${toDelete?.title ?? 'product'}?`}
-        description="This product will be removed from the catalogue. This action can't be undone."
+        description="This removes the product from Firestore. Its uploaded images remain in Cloudinary (secure deletion requires a backend). This action can't be undone."
         confirmLabel="Delete product"
       />
     </div>

@@ -13,15 +13,24 @@ import {
   firestoreDateSchema,
 } from './common';
 
+/** A Cloudinary-backed product image (mirrors `ProductImage` in `@/types/models`). */
 export const productImageSchema = z.object({
   id: idSchema,
   url: z.url(),
-  storagePath: z.string().optional(),
+  publicId: nonEmptyString,
   alt: z.string().default(''),
-  width: z.number().int().positive().optional(),
-  height: z.number().int().positive().optional(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  format: nonEmptyString,
+  bytes: z.number().int().nonnegative(),
   sortOrder: z.number().int().nonnegative().default(0),
   isPrimary: z.boolean().default(false),
+});
+
+/** A single label/value specification row. */
+export const productSpecificationSchema = z.object({
+  label: nonEmptyString,
+  value: nonEmptyString,
 });
 
 /** Base product fields (no id/timestamps, no cross-field refinement). */
@@ -35,14 +44,18 @@ const productBaseSchema = z.object({
   currency: currencySchema,
   categoryId: idSchema,
   brandId: idSchema,
-  images: z.array(productImageSchema).default([]),
+  gallery: z.array(productImageSchema).default([]),
   thumbnail: z.url().or(z.literal('')).default(''),
   rating: ratingSchema.default(0),
   reviewCount: z.number().int().nonnegative().default(0),
   stock: z.number().int().nonnegative().default(0),
   tags: z.array(z.string()).default([]),
+  specifications: z.array(productSpecificationSchema).default([]),
   featured: z.boolean().default(false),
   active: z.boolean().default(true),
+  seoTitle: z.string().max(160).default(''),
+  seoDescription: z.string().max(320).default(''),
+  metaKeywords: z.array(z.string()).default([]),
 });
 
 /** salePrice, when present, must not exceed price. */
@@ -68,7 +81,11 @@ export const productSchema = productBaseSchema
   })
   .refine(saleNotAbovePrice, saleError);
 
-export type ProductImageInput = z.infer<typeof productImageSchema>;
-export type ProductCreateInput = z.infer<typeof productCreateSchema>;
-export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
+export type ProductImageInput = z.input<typeof productImageSchema>;
+export type ProductSpecificationInput = z.infer<typeof productSpecificationSchema>;
+// `z.input` (pre-defaults) so payload builders may omit fields the schema fills
+// in — e.g. `currency`, `rating`, `reviewCount` — rather than being forced to
+// supply (and, on update, clobber) server-managed values.
+export type ProductCreateInput = z.input<typeof productCreateSchema>;
+export type ProductUpdateInput = z.input<typeof productUpdateSchema>;
 export type ProductDocument = z.infer<typeof productSchema>;

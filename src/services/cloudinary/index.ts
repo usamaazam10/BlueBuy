@@ -19,6 +19,7 @@ export {
   CloudinaryError,
   cloudinaryService,
   uploadImage,
+  uploadImages,
   validateImageFile,
   optimizeImageUrl,
   thumbnailUrl,

@@ -39,6 +39,11 @@ export interface UploadImageOptions {
   tags?: string[];
   /** AbortSignal to cancel an in-flight upload. */
   signal?: AbortSignal;
+  /**
+   * Progress callback, invoked with an integer percentage (0–100) as the file
+   * uploads. Enables a real progress indicator in the UI.
+   */
+  onProgress?: (percent: number) => void;
 }
 
 /** Discriminated result of client-side file validation. */

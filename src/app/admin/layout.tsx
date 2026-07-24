@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { AdminShell } from '@/components/admin/layout/admin-shell';
 import { AuthProvider } from '@/lib/auth';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { ToastProvider } from '@/components/ui/toast';
 
 export const metadata: Metadata = {
   title: {
@@ -21,7 +22,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <AuthProvider>
       <ProtectedRoute>
-        <AdminShell>{children}</AdminShell>
+        <ToastProvider>
+          <AdminShell>{children}</AdminShell>
+        </ToastProvider>
       </ProtectedRoute>
     </AuthProvider>
   );

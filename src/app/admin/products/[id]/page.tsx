@@ -1,59 +1,23 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { ProductForm, type ProductFormValues } from '@/components/admin/products/product-form';
-import { ADMIN_PRODUCTS, getAdminProductById } from '@/data/admin/products';
-import { getProductBySlug } from '@/data/products';
-import type { AdminProduct } from '@/data/admin/types';
+import { ADMIN_PRODUCTS } from '@/data/admin/products';
+import { EditProductClient } from '@/components/admin/products/edit-product-client';
 
-/** Pre-render an edit page per product (required for `output: export`). */
+/**
+ * Pre-render an edit page per known product id (required for `output: export`).
+ *
+ * Note: this enumerates the *seeded* catalogue ids. Products created at runtime
+ * in Firestore get a new id that isn't in this list, so a hard navigation to
+ * their edit URL isn't statically generated — an inherent static-export
+ * trade-off. In-app navigation (client routing) still works. See
+ * PRODUCT_MANAGEMENT.md. Actual product data is loaded live by EditProductClient.
+ */
 export function generateStaticParams() {
   return ADMIN_PRODUCTS.map((product) => ({ id: product.id }));
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const { id } = await params;
-  const product = getAdminProductById(id);
-  return { title: product ? `Edit · ${product.title}` : 'Edit product' };
-}
-
-/** Builds editor form values, enriching admin data with storefront copy/specs. */
-function toFormValues(product: AdminProduct): ProductFormValues {
-  const storefront = getProductBySlug(product.slug);
-  return {
-    title: product.title,
-    slug: product.slug,
-    shortDescription: storefront?.highlights[0] ?? '',
-    description: storefront?.description ?? '',
-    price: String(product.price),
-    salePrice: product.compareAtPrice ? String(product.price) : '',
-    stock: String(product.stock),
-    categorySlug: product.category,
-    brandId: product.brandId,
-    featured: product.featured,
-    active: product.status === 'active',
-    tags: storefront?.highlights.slice(0, 3).map((h) => h.split(' ')[0].toLowerCase()) ?? [
-      product.category,
-    ],
-    specs: (storefront?.specs ?? []).map((spec, index) => ({
-      id: `spec-${index}`,
-      label: spec.label,
-      value: spec.value,
-    })),
-    seoTitle: `${product.title} | BlueBuy`,
-    seoDescription: storefront?.description.slice(0, 155) ?? '',
-    metaKeywords: '',
-    images: product.images.map((seed) => ({ id: seed, seed, accent: product.accent })),
-  };
-}
+export const metadata: Metadata = { title: 'Edit product' };
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = getAdminProductById(id);
-  if (!product) notFound();
-
-  return <ProductForm mode="edit" initial={toFormValues(product)} productAccent={product.accent} />;
+  return <EditProductClient id={id} />;
 }
