@@ -91,6 +91,23 @@ export const ProductRepository = {
     }, 'load product');
   },
 
+  /**
+   * List active products for the storefront.
+   *
+   * Deliberately applies a single `where('active','==',true)` and **no**
+   * `orderBy` — this keeps the query on Firestore's automatic single-field index
+   * (no composite index to deploy) and respects security rules that expose only
+   * active documents. Sorting, filtering, search, "featured" and "related" are
+   * all derived client-side from this one cached list (see `useStoreProducts`),
+   * which the small catalogue makes both cheap and snappy.
+   */
+  async listActive(): Promise<Product[]> {
+    return withAppError(async () => {
+      const snap = await getDocs(query(productsCollection(), where('active', '==', true)));
+      return snap.docs.map(fromSnapshot);
+    }, 'list products');
+  },
+
   /** List products, newest first, with optional filters. */
   async list(options: ListProductsOptions = {}): Promise<Product[]> {
     return withAppError(async () => {

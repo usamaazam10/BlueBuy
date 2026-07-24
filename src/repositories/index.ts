@@ -10,3 +10,7 @@ export {
   type ProductRepositoryType,
   type ListProductsOptions,
 } from './product.repository';
+
+export { CategoryRepository, type CategoryRepositoryType } from './category.repository';
+
+export { BrandRepository, type BrandRepositoryType } from './brand.repository';

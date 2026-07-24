@@ -2,25 +2,57 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { PRODUCTS } from '@/data/products';
-import { CATEGORIES } from '@/data/categories';
+import { Search } from 'lucide-react';
+import { useStoreProducts, useStoreCategories, useStoreBrands } from '@/hooks/queries';
+import type { StoreProduct } from '@/types/store';
 import { cn } from '@/lib/utils';
 import { ProductGrid } from './product-grid';
+import { ProductGridSkeleton } from './product-grid-skeleton';
+import { ErrorState } from '@/components/common/error-state';
+import { EmptyState } from '@/components/common/empty-state';
 
-type SortKey = 'featured' | 'price-asc' | 'price-desc' | 'rating';
+type SortKey = 'featured' | 'newest' | 'price-asc' | 'price-desc';
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'featured', label: 'Featured' },
+  { value: 'newest', label: 'Newest' },
   { value: 'price-asc', label: 'Price: Low to High' },
   { value: 'price-desc', label: 'Price: High to Low' },
-  { value: 'rating', label: 'Top Rated' },
 ];
+
+/** Sort a copy of the list by the selected key (never mutates the input). */
+function sortProducts(products: StoreProduct[], sort: SortKey): StoreProduct[] {
+  const sorted = [...products];
+  switch (sort) {
+    case 'price-asc':
+      sorted.sort((a, b) => a.price - b.price);
+      break;
+    case 'price-desc':
+      sorted.sort((a, b) => b.price - a.price);
+      break;
+    case 'newest':
+      sorted.sort((a, b) => b.createdAtMs - a.createdAtMs);
+      break;
+    case 'featured':
+      sorted.sort(
+        (a, b) => Number(b.featured) - Number(a.featured) || b.createdAtMs - a.createdAtMs
+      );
+      break;
+  }
+  return sorted;
+}
 
 export function ProductsView() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get('category') ?? 'all';
 
+  const { data: products, isLoading, isError, refetch } = useStoreProducts();
+  const { data: categories } = useStoreCategories();
+  const { data: brands } = useStoreBrands();
+
   const [category, setCategory] = React.useState<string>(initialCategory);
+  const [brand, setBrand] = React.useState<string>('all');
+  const [search, setSearch] = React.useState('');
   const [sort, setSort] = React.useState<SortKey>('featured');
 
   // Keep the filter in sync if the query param changes (e.g. nav from a card).
@@ -29,24 +61,35 @@ export function ProductsView() {
   }, [searchParams]);
 
   const filtered = React.useMemo(() => {
-    const base = category === 'all' ? PRODUCTS : PRODUCTS.filter((p) => p.category === category);
-    const sorted = [...base];
-    switch (sort) {
-      case 'price-asc':
-        sorted.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        sorted.sort((a, b) => b.price - a.price);
-        break;
-      case 'rating':
-        sorted.sort((a, b) => b.rating - a.rating);
-        break;
-    }
-    return sorted;
-  }, [category, sort]);
+    const query = search.trim().toLowerCase();
+    const matched = products.filter((product) => {
+      if (category !== 'all' && product.categorySlug !== category) return false;
+      if (brand !== 'all' && product.brandId !== brand) return false;
+      if (query) {
+        const haystack =
+          `${product.title} ${product.categoryName} ${product.brandName} ${product.description}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+    return sortProducts(matched, sort);
+  }, [products, category, brand, search, sort]);
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Search */}
+      <div className="border-border bg-background focus-within:border-brand focus-within:ring-ring/40 flex h-12 items-center gap-3 rounded-full border px-5 focus-within:ring-2">
+        <Search className="text-muted-foreground size-4 shrink-0" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search products…"
+          aria-label="Search products"
+          className="placeholder:text-muted-foreground h-full w-full bg-transparent text-sm outline-none"
+        />
+      </div>
+
       {/* Filter + sort toolbar */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div
@@ -57,7 +100,7 @@ export function ProductsView() {
           <FilterPill active={category === 'all'} onClick={() => setCategory('all')}>
             All
           </FilterPill>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <FilterPill key={c.id} active={category === c.slug} onClick={() => setCategory(c.slug)}>
               {c.name}
             </FilterPill>
@@ -65,6 +108,27 @@ export function ProductsView() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          {brands.length > 0 && (
+            <>
+              <label htmlFor="brand" className="text-muted-foreground text-sm">
+                Brand
+              </label>
+              <select
+                id="brand"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                className="border-border bg-background focus-visible:border-brand focus-visible:ring-ring/40 h-10 rounded-full border px-4 text-sm font-medium outline-none focus-visible:ring-2"
+              >
+                <option value="all">All brands</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
           <label htmlFor="sort" className="text-muted-foreground text-sm">
             Sort
           </label>
@@ -83,14 +147,30 @@ export function ProductsView() {
         </div>
       </div>
 
-      <p className="text-muted-foreground text-sm" aria-live="polite">
-        {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
-      </p>
-
-      {filtered.length > 0 ? (
-        <ProductGrid products={filtered} />
+      {isLoading ? (
+        <ProductGridSkeleton count={8} />
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
       ) : (
-        <p className="text-muted-foreground py-16 text-center">No products in this category yet.</p>
+        <>
+          <p className="text-muted-foreground text-sm" aria-live="polite">
+            {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
+          </p>
+
+          {filtered.length > 0 ? (
+            <ProductGrid products={filtered} />
+          ) : products.length === 0 ? (
+            <EmptyState
+              title="No products yet"
+              description="Our catalogue is being stocked. Please check back soon."
+            />
+          ) : (
+            <EmptyState
+              title="No matches"
+              description="No products match your search and filters. Try clearing them."
+            />
+          )}
+        </>
       )}
     </div>
   );

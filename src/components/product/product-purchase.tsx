@@ -1,13 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import type { Product } from '@/types';
+import type { StoreProduct } from '@/types/store';
 import { QuantitySelector } from './quantity-selector';
 import { AddToCartButton } from './add-to-cart-button';
 import { Button } from '@/components/ui/button';
 
 interface ProductPurchaseProps {
-  product: Product;
+  product: StoreProduct;
 }
 
 /** Quantity + add-to-cart controls for the details page (UI only). */

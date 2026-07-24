@@ -5,14 +5,34 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
-import { ProductMedia } from '@/components/product/product-media';
-import { getFeaturedProducts } from '@/data/products';
+import { ProductImage } from '@/components/product/product-image';
+import { useStoreProducts } from '@/hooks/queries';
+import { deriveAccent } from '@/lib/mappers/store';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
+/** Decorative fallback tiles so the hero always renders before data arrives. */
+const FALLBACK_TILES = ['aura', 'vertex', 'lumen'].map((seed) => ({
+  key: seed,
+  src: undefined as string | undefined,
+  accent: deriveAccent(seed),
+  seed,
+}));
+
 export function Hero() {
   const reduceMotion = useReducedMotion();
-  const floatProducts = getFeaturedProducts(3);
+  const { data } = useStoreProducts();
+
+  // Purely decorative tiles; fall back to placeholder art before data loads.
+  const tiles =
+    data.length > 0
+      ? data.slice(0, 3).map((product) => ({
+          key: product.id,
+          src: product.thumbnail || undefined,
+          accent: product.accent,
+          seed: product.slug,
+        }))
+      : FALLBACK_TILES;
 
   const container = {
     hidden: {},
@@ -77,18 +97,20 @@ export function Hero() {
 
         {/* Floating product tiles */}
         <div aria-hidden className="pointer-events-none mt-16 hidden justify-center gap-6 lg:flex">
-          {floatProducts.map((product, i) => (
+          {tiles.map((tile, i) => (
             <motion.div
-              key={product.id}
+              key={tile.key}
               initial={reduceMotion ? false : { opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: EASE, delay: 0.5 + i * 0.12 }}
               className="bg-card border-border shadow-foreground/5 w-64 overflow-hidden rounded-3xl border shadow-xl"
               style={{ transform: `translateY(${i === 1 ? '-24px' : '0'})` }}
             >
-              <ProductMedia
-                seed={product.images[0]}
-                accent={product.accent}
+              <ProductImage
+                src={tile.src}
+                alt=""
+                seed={tile.seed}
+                accent={tile.accent}
                 className="aspect-[4/5] w-full"
               />
             </motion.div>

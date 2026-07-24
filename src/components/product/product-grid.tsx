@@ -1,10 +1,10 @@
-import type { Product } from '@/types';
+import type { StoreProduct } from '@/types/store';
 import { cn } from '@/lib/utils';
 import { Stagger, StaggerItem } from '@/components/common/motion';
 import { ProductCard } from './product-card';
 
 interface ProductGridProps {
-  products: Product[];
+  products: StoreProduct[];
   className?: string;
 }
 

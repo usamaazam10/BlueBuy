@@ -1,13 +1,14 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
-import type { Product } from '@/types';
+import type { StoreProduct } from '@/types/store';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Rating } from './rating';
-import { ProductMedia } from './product-media';
+import { ProductImage } from './product-image';
 import { AddToCartButton } from './add-to-cart-button';
 
 const BADGE_VARIANT = {
@@ -18,11 +19,11 @@ const BADGE_VARIANT = {
 } as const;
 
 interface ProductCardProps {
-  product: Product;
+  product: StoreProduct;
   className?: string;
 }
 
-export function ProductCard({ product, className }: ProductCardProps) {
+function ProductCardImpl({ product, className }: ProductCardProps) {
   const reduceMotion = useReducedMotion();
   const href = `/product/${product.slug}`;
   const outOfStock = product.stock <= 0;
@@ -38,8 +39,10 @@ export function ProductCard({ product, className }: ProductCardProps) {
     >
       {/* Media + full-card link */}
       <Link href={href} className="relative aspect-square overflow-hidden" tabIndex={-1}>
-        <ProductMedia
-          seed={product.images[0]}
+        <ProductImage
+          src={product.thumbnail}
+          alt={product.title}
+          seed={product.slug}
           accent={product.accent}
           className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
         />
@@ -58,7 +61,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
           <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            {product.category.replace('-', ' ')}
+            {product.categoryName || product.category.replace('-', ' ')}
           </span>
           <h3 className="leading-snug font-medium">
             <Link
@@ -93,3 +96,6 @@ export function ProductCard({ product, className }: ProductCardProps) {
     </motion.article>
   );
 }
+
+/** Memoised so grids of cards don't re-render when unrelated state changes. */
+export const ProductCard = React.memo(ProductCardImpl);

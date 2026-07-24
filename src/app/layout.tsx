@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
+import { QueryProvider } from '@/components/providers/query-provider';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { SITE_CONFIG } from '@/constants/site';
+import { env } from '@/lib/env';
 import '@/styles/globals.css';
 
 const geistSans = Geist({
@@ -16,6 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(env.siteUrl),
   title: {
     default: SITE_CONFIG.name,
     template: `%s | ${SITE_CONFIG.name}`,
@@ -47,7 +50,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SiteChrome>{children}</SiteChrome>
+          <QueryProvider>
+            <SiteChrome>{children}</SiteChrome>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

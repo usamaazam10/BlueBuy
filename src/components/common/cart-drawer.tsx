@@ -3,12 +3,12 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { ShoppingBag, Trash2 } from 'lucide-react';
-import { PRODUCTS } from '@/data/products';
+import { useStoreProducts } from '@/hooks/queries';
 import { formatPrice } from '@/lib/format';
 import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { QuantitySelector } from '@/components/product/quantity-selector';
-import { ProductMedia } from '@/components/product/product-media';
+import { ProductImage } from '@/components/product/product-image';
 
 interface CartDrawerProps {
   open: boolean;
@@ -20,31 +20,41 @@ interface CartLine {
   quantity: number;
 }
 
-// UI-only sample lines so the drawer demonstrates a populated cart. There is no
-// real cart state in this phase; these reset when the drawer remounts.
-const SAMPLE_LINES: CartLine[] = [
-  { productId: 'p-01', quantity: 1 },
-  { productId: 'p-07', quantity: 2 },
-];
-
 export function CartDrawer({ open, onClose }: CartDrawerProps) {
-  const [lines, setLines] = React.useState<CartLine[]>(SAMPLE_LINES);
+  const { data: products } = useStoreProducts();
+  // UI-only demo cart. There is no real cart state in this phase; the lines are
+  // seeded from the first live products once the catalogue loads, and reset when
+  // the drawer remounts.
+  const [lines, setLines] = React.useState<CartLine[] | null>(null);
 
-  const items = lines
+  React.useEffect(() => {
+    if (lines === null && products.length > 0) {
+      setLines(
+        products.slice(0, 2).map((product, index) => ({
+          productId: product.id,
+          quantity: index === 1 ? 2 : 1,
+        }))
+      );
+    }
+  }, [lines, products]);
+
+  const items = (lines ?? [])
     .map((line) => {
-      const product = PRODUCTS.find((p) => p.id === line.productId);
+      const product = products.find((p) => p.id === line.productId);
       return product ? { ...line, product } : null;
     })
-    .filter((item): item is CartLine & { product: (typeof PRODUCTS)[number] } => item !== null);
+    .filter((item): item is CartLine & { product: (typeof products)[number] } => item !== null);
 
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   function updateQuantity(productId: string, quantity: number) {
-    setLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, quantity } : l)));
+    setLines((prev) =>
+      (prev ?? []).map((l) => (l.productId === productId ? { ...l, quantity } : l))
+    );
   }
 
   function removeLine(productId: string) {
-    setLines((prev) => prev.filter((l) => l.productId !== productId));
+    setLines((prev) => (prev ?? []).filter((l) => l.productId !== productId));
   }
 
   return (
@@ -72,8 +82,10 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                   onClick={onClose}
                   className="bg-secondary/40 border-border size-20 shrink-0 overflow-hidden rounded-xl border"
                 >
-                  <ProductMedia
-                    seed={item.product.images[0]}
+                  <ProductImage
+                    src={item.product.thumbnail}
+                    alt={item.product.title}
+                    seed={item.product.slug}
                     accent={item.product.accent}
                     className="h-full w-full"
                   />
