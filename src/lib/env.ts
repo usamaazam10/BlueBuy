@@ -15,6 +15,13 @@ export const env = {
   /** Public site URL, useful for absolute metadata/OG links. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
 
+  /**
+   * Store WhatsApp number in international format, digits only (no `+`), e.g.
+   * `15551234567`. Used to build the post-order "Contact on WhatsApp" handoff.
+   * Falls back to a placeholder so the flow works before it's configured.
+   */
+  storeWhatsApp: (process.env.NEXT_PUBLIC_STORE_WHATSAPP ?? '15551234567').replace(/\D/g, ''),
+
   /** Firebase config — prepared, not wired up. See `.env.example`. */
   firebase: {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',

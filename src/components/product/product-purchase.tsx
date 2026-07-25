@@ -28,8 +28,10 @@ export function ProductPurchase({ product }: ProductPurchaseProps) {
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <AddToCartButton
-          productTitle={product.title}
+          product={product}
+          quantity={quantity}
           outOfStock={outOfStock}
+          openDrawerOnAdd
           variant="brand"
           size="lg"
           className="flex-1"

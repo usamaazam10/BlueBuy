@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { ExternalLink, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertCircle, ExternalLink, Loader2, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { ProductMedia } from '@/components/product/product-media';
@@ -10,8 +11,11 @@ import { Field, Input, Textarea, Switch, Label } from '@/components/admin/ui/con
 import { ActiveBadge } from '@/components/admin/ui/status-badge';
 import { EmptyState } from '@/components/admin/ui/empty-state';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
-import { BRANDS } from '@/data/admin/brands';
-import type { Brand } from '@/data/admin/types';
+import { useToast } from '@/components/ui/toast';
+import { BrandRepository } from '@/repositories';
+import { deriveAccent } from '@/lib/mappers/store';
+import { toAppError } from '@/firebase';
+import type { Brand } from '@/types/models';
 
 function slugify(value: string): string {
   return value
@@ -22,17 +26,58 @@ function slugify(value: string): string {
     .replace(/-+/g, '-');
 }
 
-type Draft = Pick<Brand, 'name' | 'slug' | 'description' | 'website' | 'active'>;
+interface Draft {
+  name: string;
+  slug: string;
+  description: string;
+  website: string;
+  active: boolean;
+}
 
 const EMPTY_DRAFT: Draft = { name: '', slug: '', description: '', website: '', active: true };
 
+/**
+ * Brands manager — backed by Firestore via {@link BrandRepository}. Loads the
+ * full collection (active + inactive) on mount, and every create/edit/delete is
+ * persisted (never Firestore directly, never local mock state). Mirrors the
+ * products admin's load/error/toast conventions.
+ */
 export function BrandsManager() {
-  const [brands, setBrands] = React.useState<Brand[]>(BRANDS);
+  const router = useRouter();
+  const toast = useToast();
+
+  const [brands, setBrands] = React.useState<Brand[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
   const [editing, setEditing] = React.useState<Brand | null>(null);
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [slugEdited, setSlugEdited] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
   const [toDelete, setToDelete] = React.useState<Brand | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  // Load brands from Firestore (via the repository — never Firestore directly).
+  React.useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError(null);
+    BrandRepository.list()
+      .then((list) => {
+        if (!active) return;
+        setBrands([...list].sort((a, b) => a.name.localeCompare(b.name)));
+      })
+      .catch((error: unknown) => {
+        if (active) setLoadError(toAppError(error).message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -54,23 +99,59 @@ export function BrandsManager() {
     setModalOpen(true);
   }
 
-  function save() {
-    if (!draft.name.trim()) return;
-    if (editing) {
-      setBrands((prev) => prev.map((b) => (b.id === editing.id ? { ...b, ...draft } : b)));
-    } else {
-      setBrands((prev) => [
-        {
-          id: `brand-${Date.now()}`,
-          accent: '#6366f1',
-          productCount: 0,
-          ...draft,
-          slug: draft.slug || slugify(draft.name),
-        },
-        ...prev,
-      ]);
+  async function save() {
+    const name = draft.name.trim();
+    if (!name) return;
+    const slug = draft.slug.trim() || slugify(name);
+    const website = draft.website.trim() || null;
+
+    setSaving(true);
+    try {
+      if (editing) {
+        const updated = await BrandRepository.update(editing.id, {
+          name,
+          slug,
+          description: draft.description,
+          website,
+          active: draft.active,
+        });
+        setBrands((prev) =>
+          [...prev.map((b) => (b.id === updated.id ? updated : b))].sort((a, b) =>
+            a.name.localeCompare(b.name)
+          )
+        );
+        toast.success('Brand updated', `“${updated.name}” was saved.`);
+      } else {
+        const created = await BrandRepository.create({
+          name,
+          slug,
+          description: draft.description,
+          website,
+          active: draft.active,
+          logo: null,
+        });
+        setBrands((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        toast.success('Brand created', `“${created.name}” was added.`);
+      }
+      setModalOpen(false);
+    } catch (error) {
+      toast.error(editing ? 'Update failed' : 'Create failed', toAppError(error).message);
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
+  }
+
+  async function handleDelete(brand: Brand) {
+    setDeletingId(brand.id);
+    try {
+      await BrandRepository.remove(brand.id);
+      setBrands((prev) => prev.filter((b) => b.id !== brand.id));
+      toast.success('Brand deleted', `“${brand.name}” was removed.`);
+    } catch (error) {
+      toast.error('Delete failed', toAppError(error).message);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const columns: Column<Brand>[] = [
@@ -80,7 +161,11 @@ export function BrandsManager() {
       cell: (b) => (
         <div className="flex items-center gap-3">
           <span className="border-border size-9 shrink-0 overflow-hidden rounded-lg border">
-            <ProductMedia seed={b.slug} accent={b.accent} className="h-full w-full" />
+            <ProductMedia
+              seed={b.slug}
+              accent={deriveAccent(b.id || b.slug)}
+              className="h-full w-full"
+            />
           </span>
           <div className="min-w-0">
             <p className="text-foreground truncate font-medium">{b.name}</p>
@@ -110,13 +195,6 @@ export function BrandsManager() {
         ),
     },
     {
-      key: 'products',
-      header: 'Products',
-      align: 'right',
-      hideOnMobile: true,
-      cell: (b) => <span className="text-muted-foreground tabular-nums">{b.productCount}</span>,
-    },
-    {
       key: 'status',
       header: 'Status',
       cell: (b) => <ActiveBadge active={b.active} />,
@@ -127,7 +205,7 @@ export function BrandsManager() {
       align: 'right',
       className: 'w-24',
       cell: (b) => (
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => openEdit(b)}
@@ -139,15 +217,49 @@ export function BrandsManager() {
           <button
             type="button"
             onClick={() => setToDelete(b)}
+            disabled={deletingId === b.id}
             aria-label={`Delete ${b.name}`}
-            className="text-muted-foreground hover:bg-destructive/10 flex size-8 items-center justify-center rounded-lg transition-colors hover:text-rose-600 dark:hover:text-rose-400"
+            className="text-muted-foreground hover:bg-destructive/10 flex size-8 items-center justify-center rounded-lg transition-colors hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
           >
-            <Trash2 className="size-4" />
+            {deletingId === b.id ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
           </button>
         </div>
       ),
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading brands…</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title="Couldn’t load brands"
+        description={loadError}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => router.refresh()}
+          >
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
 
   return (
     <>
@@ -215,7 +327,7 @@ export function BrandsManager() {
               <Input
                 id="brand-website"
                 type="url"
-                value={draft.website ?? ''}
+                value={draft.website}
                 onChange={(e) => setDraft((d) => ({ ...d, website: e.target.value }))}
                 placeholder="https://brand.example.com"
               />
@@ -244,11 +356,26 @@ export function BrandsManager() {
               size="sm"
               className="rounded-lg"
               onClick={() => setModalOpen(false)}
+              disabled={saving}
             >
               Cancel
             </Button>
-            <Button variant="brand" size="sm" className="rounded-lg" onClick={save}>
-              {editing ? 'Save changes' : 'Create brand'}
+            <Button
+              variant="brand"
+              size="sm"
+              className="rounded-lg"
+              onClick={save}
+              disabled={saving || !draft.name.trim()}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Saving…
+                </>
+              ) : editing ? (
+                'Save changes'
+              ) : (
+                'Create brand'
+              )}
             </Button>
           </div>
         </div>
@@ -258,10 +385,10 @@ export function BrandsManager() {
         open={toDelete !== null}
         onClose={() => setToDelete(null)}
         onConfirm={() => {
-          if (toDelete) setBrands((prev) => prev.filter((b) => b.id !== toDelete.id));
+          if (toDelete) void handleDelete(toDelete);
         }}
         title={`Delete ${toDelete?.name ?? 'brand'}?`}
-        description="Products assigned to this brand will keep their data but lose the brand link."
+        description="Products assigned to this brand will keep their data but lose the brand link. This can't be undone."
         confirmLabel="Delete brand"
       />
     </>

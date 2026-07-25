@@ -3,27 +3,38 @@
 import * as React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ShoppingBag } from 'lucide-react';
+import type { CartAddable } from '@/types/cart';
+import { useCart } from '@/context/cart-context';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface AddToCartButtonProps extends Omit<ButtonProps, 'children'> {
-  productTitle: string;
+  /** Product to add — any catalogue product satisfies this shape. */
+  product: CartAddable;
+  /** Quantity to add per click (details page passes the chosen amount). */
+  quantity?: number;
   outOfStock?: boolean;
   label?: string;
+  /** Slide the cart drawer open after a successful add. */
+  openDrawerOnAdd?: boolean;
 }
 
 /**
- * UI-only "Add to Cart". There is no cart state yet — on click it shows a
- * brief confirmation so the interaction feels complete without wiring logic.
+ * Adds a product to the cart and confirms with a brief inline "Added" state.
+ * The real cart mutation lives in the cart context; this component only owns the
+ * transient confirmation animation.
  */
 export function AddToCartButton({
-  productTitle,
+  product,
+  quantity = 1,
   outOfStock = false,
   label = 'Add to Cart',
+  openDrawerOnAdd = false,
   variant = 'primary',
   className,
   ...props
 }: AddToCartButtonProps) {
+  const { addItem } = useCart();
   const [added, setAdded] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -35,6 +46,8 @@ export function AddToCartButton({
   );
 
   function handleClick() {
+    if (outOfStock) return;
+    addItem(product, quantity, { openDrawer: openDrawerOnAdd });
     setAdded(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setAdded(false), 1600);
@@ -49,10 +62,10 @@ export function AddToCartButton({
       aria-live="polite"
       aria-label={
         outOfStock
-          ? `${productTitle} is out of stock`
+          ? `${product.title} is out of stock`
           : added
-            ? `${productTitle} added to cart`
-            : `Add ${productTitle} to cart`
+            ? `${product.title} added to cart`
+            : `Add ${product.title} to cart`
       }
       className={cn('relative overflow-hidden', className)}
       {...props}

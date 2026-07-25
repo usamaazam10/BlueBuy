@@ -86,7 +86,7 @@ function ProductCardImpl({ product, className }: ProductCardProps) {
 
         {/* Above the card link so it stays clickable */}
         <AddToCartButton
-          productTitle={product.title}
+          product={product}
           outOfStock={outOfStock}
           variant="outline"
           size="sm"

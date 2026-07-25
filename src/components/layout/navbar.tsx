@@ -3,9 +3,11 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Menu, Search, ShoppingBag } from 'lucide-react';
 import { MAIN_NAV } from '@/data/navigation';
 import { cn } from '@/lib/utils';
+import { useCart } from '@/context/cart-context';
 import { Container } from './container';
 import { Logo } from '@/components/common/logo';
 import { ThemeToggle } from '@/components/common/theme-toggle';
@@ -16,9 +18,9 @@ import { MobileMenu } from './mobile-menu';
 /** Sticky, blur-backed navigation with search, cart and theme controls. */
 export function Navbar() {
   const pathname = usePathname();
+  const { itemCount, hydrated, openDrawer } = useCart();
   const [scrolled, setScrolled] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
-  const [cartOpen, setCartOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -94,21 +96,32 @@ export function Navbar() {
             <ThemeToggle />
             <button
               type="button"
-              onClick={() => setCartOpen(true)}
-              aria-label="Open cart"
+              onClick={openDrawer}
+              aria-label={itemCount > 0 ? `Open cart, ${itemCount} items` : 'Open cart'}
               className="text-foreground hover:bg-secondary focus-visible:ring-ring relative flex size-10 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2"
             >
               <ShoppingBag className="size-[18px]" />
-              <span className="bg-brand text-brand-foreground absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full text-[10px] font-semibold">
-                2
-              </span>
+              {/* Badge unmounts (not AnimatePresence-exits) when the cart empties
+                  so it can never be left showing a stale count. The `key` makes
+                  it remount — and re-pop — on every count change. */}
+              {hydrated && itemCount > 0 && (
+                <motion.span
+                  key={itemCount}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                  className="bg-brand text-brand-foreground absolute top-1 right-1 flex size-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums"
+                >
+                  {itemCount > 99 ? '99+' : itemCount}
+                </motion.span>
+              )}
             </button>
           </div>
         </Container>
       </header>
 
       <SearchBar open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      <CartDrawer />
       <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
   );

@@ -30,7 +30,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
     href: '/admin/orders',
     icon: ShoppingCart,
     section: 'Store',
-    placeholder: true,
   },
   {
     label: 'Customers',

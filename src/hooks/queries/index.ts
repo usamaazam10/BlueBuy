@@ -10,3 +10,4 @@ export { useProductsQuery } from './use-products';
 export { useCategoriesQuery, useStoreCategories } from './use-categories';
 export { useBrandsQuery, useStoreBrands } from './use-brands';
 export { useStoreProducts } from './use-store-products';
+export { useOrdersQuery, useOrderQuery, usePlaceOrder, useUpdateOrderStatus } from './use-orders';

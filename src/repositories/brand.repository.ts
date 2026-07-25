@@ -8,18 +8,28 @@
  * index, no composite index to deploy). Display ordering is applied client-side.
  */
 import {
+  addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
   limit,
   query,
+  serverTimestamp,
+  updateDoc,
   where,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { getDb, withAppError } from '@/firebase';
+import { getDb, AppError, withAppError } from '@/firebase';
 import { COLLECTIONS, type Brand } from '@/types/models';
+import {
+  brandCreateSchema,
+  brandUpdateSchema,
+  type BrandCreateInput,
+  type BrandUpdateInput,
+} from '@/lib/validations';
 
 /** Firestore collection reference for brands. */
 function brandsCollection() {
@@ -55,6 +65,72 @@ export const BrandRepository = {
       const snap = await getDocs(query(brandsCollection(), where('slug', '==', slug), limit(1)));
       return snap.empty ? null : fromSnapshot(snap.docs[0]);
     }, 'load brand');
+  },
+
+  /**
+   * List every brand (active and inactive) for the admin. Unordered — the admin
+   * sorts client-side — so it stays on the automatic index.
+   */
+  async list(): Promise<Brand[]> {
+    return withAppError(async () => {
+      const snap = await getDocs(brandsCollection());
+      return snap.docs.map(fromSnapshot);
+    }, 'list brands');
+  },
+
+  /**
+   * Whether a slug is already taken. Pass `excludeId` when editing so a brand
+   * keeping its own slug isn't flagged as a duplicate of itself.
+   */
+  async slugExists(slug: string, excludeId?: string): Promise<boolean> {
+    return withAppError(async () => {
+      const snap = await getDocs(query(brandsCollection(), where('slug', '==', slug), limit(1)));
+      if (snap.empty) return false;
+      return snap.docs[0].id !== excludeId;
+    }, 'check slug');
+  },
+
+  /** Create a brand. Validates the payload and rejects a duplicate slug. */
+  async create(input: BrandCreateInput): Promise<Brand> {
+    const data = brandCreateSchema.parse(input);
+
+    if (await this.slugExists(data.slug)) {
+      throw new AppError('already-exists', `The slug "${data.slug}" is already in use.`);
+    }
+
+    return withAppError(async () => {
+      const ref = await addDoc(brandsCollection(), {
+        ...data,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      const created = await getDoc(ref);
+      return fromSnapshot(created as QueryDocumentSnapshot<DocumentData>);
+    }, 'create brand');
+  },
+
+  /** Update a brand. Validates the partial payload; rejects a slug collision. */
+  async update(id: string, input: BrandUpdateInput): Promise<Brand> {
+    const data = brandUpdateSchema.parse(input);
+
+    if (data.slug && (await this.slugExists(data.slug, id))) {
+      throw new AppError('already-exists', `The slug "${data.slug}" is already in use.`);
+    }
+
+    return withAppError(async () => {
+      const ref = doc(getDb(), COLLECTIONS.brands, id);
+      await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+      const updated = await getDoc(ref);
+      if (!updated.exists()) throw new AppError('not-found', 'The brand no longer exists.');
+      return fromSnapshot(updated as QueryDocumentSnapshot<DocumentData>);
+    }, 'update brand');
+  },
+
+  /** Delete a brand document. */
+  async remove(id: string): Promise<void> {
+    return withAppError(async () => {
+      await deleteDoc(doc(getDb(), COLLECTIONS.brands, id));
+    }, 'delete brand');
   },
 };
 

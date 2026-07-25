@@ -14,3 +14,5 @@ export {
 export { CategoryRepository, type CategoryRepositoryType } from './category.repository';
 
 export { BrandRepository, type BrandRepositoryType } from './brand.repository';
+
+export { OrderRepository, type OrderRepositoryType } from './order.repository';

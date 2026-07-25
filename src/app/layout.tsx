@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { QueryProvider } from '@/components/providers/query-provider';
+import { CartProvider } from '@/context/cart-context';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { SITE_CONFIG } from '@/constants/site';
 import { env } from '@/lib/env';
@@ -51,7 +52,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <QueryProvider>
-            <SiteChrome>{children}</SiteChrome>
+            <CartProvider>
+              <SiteChrome>{children}</SiteChrome>
+            </CartProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>

@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// BlueBuy Firestore Security Rules.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+//
+// IMPORTANT: deploying this file REPLACES the rules currently in the Firebase
+// Console. Review it against your existing rules first — it is written to cover
+// everything this app does (catalogue reads/writes + orders), but if you have
+// added collections or constraints in the console, fold them in here before
+// deploying.
+//
+// Architecture note: this app is a static export with no server runtime and no
+// customer accounts, so checkout runs entirely in the browser as an
+// UNAUTHENTICATED user. That forces two anonymous-write allowances below
+// (create an order, decrement product stock), each tightly scoped. For a
+// hardened production setup, move order creation + the stock decrement behind a
+// Cloud Function and tighten these to `if false`. See ORDER_MANAGEMENT.md.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Any signed-in user is treated as an admin (see src/lib/auth/roles.ts,
+    // DEFAULT_ROLE = 'admin'). Swap for a custom-claim check to add finer roles:
+    //   function isAdmin() { return request.auth != null && request.auth.token.role == 'admin'; }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // --- Catalogue: public read, admin write ---------------------------------
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create, delete: if isSignedIn();
+
+      // Admins may update freely. An unauthenticated checkout may ONLY decrement
+      // stock — it cannot raise stock or touch any other field.
+      allow update: if isSignedIn()
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt'])
+          && request.resource.data.stock is number
+          && request.resource.data.stock >= 0
+          && request.resource.data.stock < resource.data.stock
+        );
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /brands/{brandId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // --- Orders: anonymous create (pending only), admin read/manage ----------
+
+    match /orders/{orderId} {
+      // Only signed-in admins may read, list, update or delete orders — order
+      // documents hold customer PII, so they are never publicly readable.
+      allow get, list, update, delete: if isSignedIn();
+
+      // Anyone may place an order, but only in the initial `pending` state and
+      // with a well-formed, non-empty, non-negative total. Status can only be
+      // advanced later by an admin (the update rule above).
+      allow create: if request.resource.data.status == 'pending'
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0
+        && request.resource.data.items.size() > 0;
+    }
+  }
+}

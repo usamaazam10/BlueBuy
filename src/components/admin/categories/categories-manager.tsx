@@ -1,15 +1,19 @@
 'use client';
 
 import * as React from 'react';
-import { FolderTree, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertCircle, FolderTree, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Field, Input, Textarea, Switch, Label } from '@/components/admin/ui/control';
 import { ActiveBadge } from '@/components/admin/ui/status-badge';
 import { EmptyState } from '@/components/admin/ui/empty-state';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
-import { ADMIN_CATEGORIES } from '@/data/admin/categories';
-import type { AdminCategory } from '@/data/admin/types';
+import { useToast } from '@/components/ui/toast';
+import { CategoryRepository } from '@/repositories';
+import { deriveAccent } from '@/lib/mappers/store';
+import { toAppError } from '@/firebase';
+import type { Category } from '@/types/models';
 
 function slugify(value: string): string {
   return value
@@ -20,17 +24,59 @@ function slugify(value: string): string {
     .replace(/-+/g, '-');
 }
 
-type Draft = Pick<AdminCategory, 'name' | 'slug' | 'description' | 'active'>;
+interface Draft {
+  name: string;
+  slug: string;
+  description: string;
+  active: boolean;
+}
 
 const EMPTY_DRAFT: Draft = { name: '', slug: '', description: '', active: true };
 
+/**
+ * Categories manager — backed by Firestore via {@link CategoryRepository}.
+ * Loads the full collection (active + inactive) on mount, and every
+ * create/edit/delete/toggle is persisted (never Firestore directly, never local
+ * mock state). Mirrors the products admin's load/error/toast conventions.
+ */
 export function CategoriesManager() {
-  const [categories, setCategories] = React.useState<AdminCategory[]>(ADMIN_CATEGORIES);
-  const [editing, setEditing] = React.useState<AdminCategory | null>(null);
+  const router = useRouter();
+  const toast = useToast();
+
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  const [editing, setEditing] = React.useState<Category | null>(null);
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [slugEdited, setSlugEdited] = React.useState(false);
-  const [toDelete, setToDelete] = React.useState<AdminCategory | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [toDelete, setToDelete] = React.useState<Category | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  // Load categories from Firestore (via the repository — never Firestore directly).
+  React.useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError(null);
+    CategoryRepository.list()
+      .then((list) => {
+        if (!active) return;
+        setCategories(
+          [...list].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+        );
+      })
+      .catch((error: unknown) => {
+        if (active) setLoadError(toAppError(error).message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -39,7 +85,7 @@ export function CategoriesManager() {
     setModalOpen(true);
   }
 
-  function openEdit(category: AdminCategory) {
+  function openEdit(category: Category) {
     setEditing(category);
     setDraft({
       name: category.name,
@@ -51,23 +97,84 @@ export function CategoriesManager() {
     setModalOpen(true);
   }
 
-  function save() {
-    if (!draft.name.trim()) return;
-    if (editing) {
-      setCategories((prev) => prev.map((c) => (c.id === editing.id ? { ...c, ...draft } : c)));
-    } else {
-      setCategories((prev) => [
-        {
-          id: `cat-${Date.now()}`,
-          accent: '#6366f1',
+  async function save() {
+    const name = draft.name.trim();
+    if (!name) return;
+    const slug = draft.slug.trim() || slugify(name);
+
+    setSaving(true);
+    try {
+      if (editing) {
+        const updated = await CategoryRepository.update(editing.id, {
+          name,
+          slug,
+          description: draft.description,
+          active: draft.active,
+        });
+        setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        toast.success('Category updated', `“${updated.name}” was saved.`);
+      } else {
+        const created = await CategoryRepository.create({
+          name,
+          slug,
+          description: draft.description,
+          active: draft.active,
+          image: null,
+          parentId: null,
           productCount: 0,
-          ...draft,
-          slug: draft.slug || slugify(draft.name),
-        },
-        ...prev,
-      ]);
+          sortOrder: 0,
+        });
+        setCategories((prev) => [created, ...prev]);
+        toast.success('Category created', `“${created.name}” was added.`);
+      }
+      setModalOpen(false);
+    } catch (error) {
+      toast.error(editing ? 'Update failed' : 'Create failed', toAppError(error).message);
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
+  }
+
+  async function handleDelete(category: Category) {
+    setDeletingId(category.id);
+    try {
+      await CategoryRepository.remove(category.id);
+      setCategories((prev) => prev.filter((c) => c.id !== category.id));
+      toast.success('Category deleted', `“${category.name}” was removed.`);
+    } catch (error) {
+      toast.error('Delete failed', toAppError(error).message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
+        <p className="text-muted-foreground text-sm">Loading categories…</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title="Couldn’t load categories"
+        description={loadError}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => router.refresh()}
+          >
+            Retry
+          </Button>
+        }
+      />
+    );
   }
 
   return (
@@ -93,49 +200,57 @@ export function CategoriesManager() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="border-border bg-card flex flex-col rounded-xl border p-5"
-            >
-              <div className="flex items-start justify-between">
-                <span
-                  className="flex size-9 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: `${category.accent}1a`, color: category.accent }}
-                >
-                  <FolderTree className="size-4.5" />
-                </span>
-                <ActiveBadge active={category.active} />
-              </div>
-              <h3 className="text-foreground mt-3 text-sm font-semibold">{category.name}</h3>
-              <p className="text-muted-foreground mt-1 line-clamp-2 flex-1 text-sm">
-                {category.description}
-              </p>
-              <div className="border-border mt-4 flex items-center justify-between border-t pt-3">
-                <span className="text-muted-foreground text-xs">
-                  {category.productCount} {category.productCount === 1 ? 'product' : 'products'}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(category)}
-                    aria-label={`Edit ${category.name}`}
-                    className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-colors"
+          {categories.map((category) => {
+            const accent = deriveAccent(category.id || category.slug);
+            return (
+              <div
+                key={category.id}
+                className="border-border bg-card flex flex-col rounded-xl border p-5"
+              >
+                <div className="flex items-start justify-between">
+                  <span
+                    className="flex size-9 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: `${accent}1a`, color: accent }}
                   >
-                    <Pencil className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setToDelete(category)}
-                    aria-label={`Delete ${category.name}`}
-                    className="text-muted-foreground hover:bg-destructive/10 flex size-8 items-center justify-center rounded-lg transition-colors hover:text-rose-600 dark:hover:text-rose-400"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                    <FolderTree className="size-4.5" />
+                  </span>
+                  <ActiveBadge active={category.active} />
+                </div>
+                <h3 className="text-foreground mt-3 text-sm font-semibold">{category.name}</h3>
+                <p className="text-muted-foreground mt-1 line-clamp-2 flex-1 text-sm">
+                  {category.description}
+                </p>
+                <div className="border-border mt-4 flex items-center justify-between border-t pt-3">
+                  <span className="text-muted-foreground text-xs">
+                    {category.productCount} {category.productCount === 1 ? 'product' : 'products'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(category)}
+                      aria-label={`Edit ${category.name}`}
+                      className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-colors"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setToDelete(category)}
+                      disabled={deletingId === category.id}
+                      aria-label={`Delete ${category.name}`}
+                      className="text-muted-foreground hover:bg-destructive/10 flex size-8 items-center justify-center rounded-lg transition-colors hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
+                    >
+                      {deletingId === category.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -199,11 +314,26 @@ export function CategoriesManager() {
               size="sm"
               className="rounded-lg"
               onClick={() => setModalOpen(false)}
+              disabled={saving}
             >
               Cancel
             </Button>
-            <Button variant="brand" size="sm" className="rounded-lg" onClick={save}>
-              {editing ? 'Save changes' : 'Create category'}
+            <Button
+              variant="brand"
+              size="sm"
+              className="rounded-lg"
+              onClick={save}
+              disabled={saving || !draft.name.trim()}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Saving…
+                </>
+              ) : editing ? (
+                'Save changes'
+              ) : (
+                'Create category'
+              )}
             </Button>
           </div>
         </div>
@@ -213,10 +343,10 @@ export function CategoriesManager() {
         open={toDelete !== null}
         onClose={() => setToDelete(null)}
         onConfirm={() => {
-          if (toDelete) setCategories((prev) => prev.filter((c) => c.id !== toDelete.id));
+          if (toDelete) void handleDelete(toDelete);
         }}
         title={`Delete ${toDelete?.name ?? 'category'}?`}
-        description="Products in this category won't be deleted, but they'll become uncategorised."
+        description="Products in this category won't be deleted, but they'll become uncategorised. This can't be undone."
         confirmLabel="Delete category"
       />
     </>
