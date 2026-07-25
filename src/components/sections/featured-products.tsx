@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { useStoreProducts } from '@/hooks/queries';
+import { useStoreProducts, useHomepage } from '@/hooks/queries';
 import { Container } from '@/components/layout/container';
 import { SectionTitle } from '@/components/common/section-title';
 import { ProductGrid } from '@/components/product/product-grid';
@@ -14,13 +14,22 @@ import { Button } from '@/components/ui/button';
 
 export function FeaturedProducts() {
   const { data, isLoading, isError, refetch } = useStoreProducts();
+  const { data: homepage } = useHomepage();
 
-  // Featured first, backfilled with the rest so the grid is never sparse.
+  // Prefer the homepage CMS's curated product ids (in order). When none are
+  // set, fall back to `featured`-flagged products, backfilled with the rest so
+  // the grid is never sparse.
   const products = React.useMemo(() => {
+    const ids = homepage?.featuredProductIds ?? [];
+    if (ids.length > 0) {
+      const byId = new Map(data.map((product) => [product.id, product]));
+      const picked = ids.map((id) => byId.get(id)).filter((product) => product != null);
+      if (picked.length > 0) return picked.slice(0, 8);
+    }
     const featured = data.filter((product) => product.featured);
     const rest = data.filter((product) => !product.featured);
     return [...featured, ...rest].slice(0, 8);
-  }, [data]);
+  }, [data, homepage?.featuredProductIds]);
 
   return (
     <section className="bg-secondary/30 py-20 sm:py-24">

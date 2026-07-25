@@ -1,8 +1,9 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
-import { useStoreCategories } from '@/hooks/queries';
+import { useStoreCategories, useHomepage } from '@/hooks/queries';
 import { Container } from '@/components/layout/container';
 import { SectionTitle } from '@/components/common/section-title';
 import { Stagger, StaggerItem } from '@/components/common/motion';
@@ -20,7 +21,17 @@ function CategoryTileSkeleton() {
 }
 
 export function FeaturedCategories() {
-  const { data: categories, isLoading, isError, refetch } = useStoreCategories();
+  const { data: allCategories, isLoading, isError, refetch } = useStoreCategories();
+  const { data: homepage } = useHomepage();
+
+  // Honour the curated order/selection from the homepage CMS; when none is set,
+  // fall back to all active categories in their own sort order.
+  const categories = React.useMemo(() => {
+    const ids = homepage?.featuredCategoryIds ?? [];
+    if (ids.length === 0) return allCategories;
+    const byId = new Map(allCategories.map((category) => [category.id, category]));
+    return ids.map((id) => byId.get(id)).filter((category) => category != null);
+  }, [allCategories, homepage?.featuredCategoryIds]);
 
   return (
     <section className="py-20 sm:py-24">

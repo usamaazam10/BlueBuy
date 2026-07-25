@@ -1,5 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useSiteSettings } from '@/hooks/queries';
+import { DEFAULT_SITE_SETTINGS } from '@/types/cms';
 
 interface LogoProps {
   className?: string;
@@ -9,11 +13,23 @@ interface LogoProps {
 }
 
 /**
- * BlueBuy brand lockup: a geometric "shopping bag / B" mark plus the wordmark.
- * Pure SVG so it stays crisp at any size and inherits the brand color.
+ * Brand lockup: a geometric "shopping bag / B" mark plus the wordmark.
+ *
+ * Driven by the `site_settings` CMS — a custom `logoUrl` replaces the whole
+ * lockup with an image, otherwise the wordmark renders the configured
+ * `storeName`. The default store name keeps its signature two-tone treatment.
  */
 export function Logo({ className, markOnly = false, href = '/' }: LogoProps) {
-  const content = (
+  const { data: settings } = useSiteSettings();
+  const storeName = settings?.storeName || DEFAULT_SITE_SETTINGS.storeName;
+  const logoUrl = settings?.logoUrl;
+
+  const content = logoUrl ? (
+    <span className={cn('inline-flex items-center', className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- remote CMS URL; unoptimized static export */}
+      <img src={logoUrl} alt={storeName} className="h-8 w-auto object-contain" />
+    </span>
+  ) : (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
       <svg
         width="30"
@@ -36,7 +52,13 @@ export function Logo({ className, markOnly = false, href = '/' }: LogoProps) {
       </svg>
       {!markOnly && (
         <span className="text-lg font-semibold tracking-tight">
-          Blue<span className="text-brand">Buy</span>
+          {storeName === DEFAULT_SITE_SETTINGS.storeName ? (
+            <>
+              Blue<span className="text-brand">Buy</span>
+            </>
+          ) : (
+            storeName
+          )}
         </span>
       )}
     </span>
@@ -47,7 +69,7 @@ export function Logo({ className, markOnly = false, href = '/' }: LogoProps) {
   return (
     <Link
       href={href}
-      aria-label="BlueBuy home"
+      aria-label={`${storeName} home`}
       className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
     >
       {content}

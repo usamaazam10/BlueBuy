@@ -11,3 +11,12 @@ export { useCategoriesQuery, useStoreCategories } from './use-categories';
 export { useBrandsQuery, useStoreBrands } from './use-brands';
 export { useStoreProducts } from './use-store-products';
 export { useOrdersQuery, useOrderQuery, usePlaceOrder, useUpdateOrderStatus } from './use-orders';
+export {
+  useSiteSettings,
+  useHomepage,
+  useFooterContent,
+  useContactInformation,
+  useNavigationItems,
+  useSocialLinksList,
+  useActiveBanners,
+} from './use-cms';

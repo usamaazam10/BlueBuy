@@ -6,7 +6,7 @@ import { ArrowRight, Sparkles } from 'lucide-react';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { ProductImage } from '@/components/product/product-image';
-import { useStoreProducts } from '@/hooks/queries';
+import { useStoreProducts, useHomepage } from '@/hooks/queries';
 import { deriveAccent } from '@/lib/mappers/store';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -22,6 +22,8 @@ const FALLBACK_TILES = ['aura', 'vertex', 'lumen'].map((seed) => ({
 export function Hero() {
   const reduceMotion = useReducedMotion();
   const { data } = useStoreProducts();
+  const { data: homepage } = useHomepage();
+  const hero = homepage!.hero;
 
   // Purely decorative tiles; fall back to placeholder art before data loads.
   const tiles =
@@ -45,6 +47,14 @@ export function Hero() {
 
   return (
     <section className="relative overflow-hidden">
+      {/* Optional CMS background image, layered behind the geometric default. */}
+      {hero.backgroundImage && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_80%)] bg-cover bg-center opacity-15"
+          style={{ backgroundImage: `url(${hero.backgroundImage})` }}
+        />
+      )}
       {/* Geometric background — no stock imagery */}
       <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)] opacity-60" />
       <div
@@ -59,39 +69,44 @@ export function Hero() {
           animate="show"
           className="mx-auto flex max-w-3xl flex-col items-center text-center"
         >
-          <motion.div variants={item}>
-            <span className="bg-secondary/70 text-foreground border-border inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur">
-              <Sparkles className="text-brand size-4" />
-              New season, new arrivals
-            </span>
-          </motion.div>
+          {hero.eyebrow && (
+            <motion.div variants={item}>
+              <span className="bg-secondary/70 text-foreground border-border inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur">
+                <Sparkles className="text-brand size-4" />
+                {hero.eyebrow}
+              </span>
+            </motion.div>
+          )}
 
           <motion.h1
             variants={item}
             className="mt-6 text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl"
           >
-            Premium tech,
-            <br />
-            <span className="text-brand">beautifully</span> simple.
+            {hero.title}
           </motion.h1>
 
-          <motion.p
-            variants={item}
-            className="text-muted-foreground mt-6 max-w-xl text-lg text-pretty sm:text-xl"
-          >
-            BlueBuy brings together thoughtfully designed audio, wearables and displays — the
-            essentials, refined. Free shipping, 30-day returns.
-          </motion.p>
+          {hero.subtitle && (
+            <motion.p
+              variants={item}
+              className="text-muted-foreground mt-6 max-w-xl text-lg text-pretty sm:text-xl"
+            >
+              {hero.subtitle}
+            </motion.p>
+          )}
 
           <motion.div variants={item} className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Button asChild variant="brand" size="lg">
-              <Link href="/products">
-                Shop the collection <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/about">Our story</Link>
-            </Button>
+            {hero.primaryCta.label && (
+              <Button asChild variant="brand" size="lg">
+                <Link href={hero.primaryCta.href || '/'}>
+                  {hero.primaryCta.label} <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            )}
+            {hero.secondaryCta.label && (
+              <Button asChild variant="outline" size="lg">
+                <Link href={hero.secondaryCta.href || '/'}>{hero.secondaryCta.label}</Link>
+              </Button>
+            )}
           </motion.div>
         </motion.div>
 

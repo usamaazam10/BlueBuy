@@ -59,6 +59,47 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // --- CMS content: public read, admin write -------------------------------
+    // Marketing content managed from the admin and rendered by the storefront.
+    // Singletons (site_settings, homepage, footer, contact_information) and item
+    // collections (navigation, banners, social_links) share the same policy:
+    // anyone may read (the storefront is public), only admins may write.
+
+    match /site_settings/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /homepage/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /footer/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /contact_information/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /navigation/{itemId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /social_links/{linkId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // --- Orders: anonymous create (pending only), admin read/manage ----------
 
     match /orders/{orderId} {

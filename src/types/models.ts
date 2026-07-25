@@ -33,6 +33,17 @@ export const COLLECTIONS = {
   reviews: 'reviews',
   carts: 'carts',
   orders: 'orders',
+
+  // ── CMS content (managed from the admin, rendered by the storefront) ──
+  // Singleton documents (one doc per collection, id = "main"):
+  siteSettings: 'site_settings',
+  homepage: 'homepage',
+  footer: 'footer',
+  contactInformation: 'contact_information',
+  // Item collections (many ordered documents):
+  navigation: 'navigation',
+  banners: 'banners',
+  socialLinks: 'social_links',
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

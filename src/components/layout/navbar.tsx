@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Menu, Search, ShoppingBag } from 'lucide-react';
-import { MAIN_NAV } from '@/data/navigation';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/cart-context';
+import { useNavigationItems } from '@/hooks/queries';
 import { Container } from './container';
 import { Logo } from '@/components/common/logo';
 import { ThemeToggle } from '@/components/common/theme-toggle';
@@ -18,6 +18,7 @@ import { MobileMenu } from './mobile-menu';
 /** Sticky, blur-backed navigation with search, cart and theme controls. */
 export function Navbar() {
   const pathname = usePathname();
+  const { items: navItems } = useNavigationItems();
   const { itemCount, hydrated, openDrawer } = useCart();
   const [scrolled, setScrolled] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -64,12 +65,12 @@ export function Navbar() {
             </button>
             <Logo />
             <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
-              {MAIN_NAV.map((link) => {
+              {navItems.map((link) => {
                 const active =
                   link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
                 return (
                   <Link
-                    key={link.href}
+                    key={link.id}
                     href={link.href}
                     aria-current={active ? 'page' : undefined}
                     className={cn(

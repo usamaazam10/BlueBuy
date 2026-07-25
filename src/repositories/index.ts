@@ -16,3 +16,20 @@ export { CategoryRepository, type CategoryRepositoryType } from './category.repo
 export { BrandRepository, type BrandRepositoryType } from './brand.repository';
 
 export { OrderRepository, type OrderRepositoryType } from './order.repository';
+
+export {
+  SiteSettingsRepository,
+  HomepageRepository,
+  FooterRepository,
+  ContactRepository,
+  NavigationRepository,
+  BannerRepository,
+  SocialLinkRepository,
+  type SiteSettingsRepositoryType,
+  type HomepageRepositoryType,
+  type FooterRepositoryType,
+  type ContactRepositoryType,
+  type NavigationRepositoryType,
+  type BannerRepositoryType,
+  type SocialLinkRepositoryType,
+} from './cms.repository';

@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MAIN_NAV } from '@/data/navigation';
 import { cn } from '@/lib/utils';
 import { Drawer } from '@/components/ui/drawer';
 import { Logo } from '@/components/common/logo';
+import { useNavigationItems } from '@/hooks/queries';
 
 interface MobileMenuProps {
   open: boolean;
@@ -14,15 +14,16 @@ interface MobileMenuProps {
 
 export function MobileMenu({ open, onClose }: MobileMenuProps) {
   const pathname = usePathname();
+  const { items: navItems } = useNavigationItems();
 
   return (
     <Drawer open={open} onClose={onClose} side="left" title="Menu">
       <nav className="flex flex-col p-3" aria-label="Mobile">
-        {MAIN_NAV.map((link) => {
+        {navItems.map((link) => {
           const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
           return (
             <Link
-              key={link.href}
+              key={link.id}
               href={link.href}
               onClick={onClose}
               aria-current={active ? 'page' : undefined}

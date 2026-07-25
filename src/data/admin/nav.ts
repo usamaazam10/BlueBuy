@@ -7,6 +7,12 @@ import {
   ShoppingCart,
   Users,
   Settings,
+  Home,
+  Menu,
+  PanelBottom,
+  Megaphone,
+  Share2,
+  Mail,
 } from 'lucide-react';
 
 export interface AdminNavItem {
@@ -14,7 +20,7 @@ export interface AdminNavItem {
   href: string;
   icon: LucideIcon;
   /** Grouping label rendered above the item's section. */
-  section: 'Catalog' | 'Store' | 'System';
+  section: 'Catalog' | 'Content' | 'Store' | 'System';
   /** Placeholder pages are visually marked as "Soon". */
   placeholder?: boolean;
 }
@@ -25,6 +31,15 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Products', href: '/admin/products', icon: Package, section: 'Catalog' },
   { label: 'Categories', href: '/admin/categories', icon: FolderTree, section: 'Catalog' },
   { label: 'Brands', href: '/admin/brands', icon: Tag, section: 'Catalog' },
+
+  // ── CMS content ──
+  { label: 'Homepage', href: '/admin/cms/homepage', icon: Home, section: 'Content' },
+  { label: 'Navigation', href: '/admin/cms/navigation', icon: Menu, section: 'Content' },
+  { label: 'Footer', href: '/admin/cms/footer', icon: PanelBottom, section: 'Content' },
+  { label: 'Banners', href: '/admin/cms/banners', icon: Megaphone, section: 'Content' },
+  { label: 'Social links', href: '/admin/cms/social', icon: Share2, section: 'Content' },
+  { label: 'Contact', href: '/admin/cms/contact', icon: Mail, section: 'Content' },
+
   {
     label: 'Orders',
     href: '/admin/orders',
@@ -43,9 +58,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
     href: '/admin/settings',
     icon: Settings,
     section: 'System',
-    placeholder: true,
   },
 ];
 
 /** Sections in display order. */
-export const ADMIN_NAV_SECTIONS: AdminNavItem['section'][] = ['Catalog', 'Store', 'System'];
+export const ADMIN_NAV_SECTIONS: AdminNavItem['section'][] = [
+  'Catalog',
+  'Content',
+  'Store',
+  'System',
+];

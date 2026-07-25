@@ -9,3 +9,4 @@ export * from './brand.schema';
 export * from './review.schema';
 export * from './cart.schema';
 export * from './order.schema';
+export * from './cms.schema';

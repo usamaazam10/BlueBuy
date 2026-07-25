@@ -3,6 +3,8 @@
 import { usePathname } from 'next/navigation';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
+import { AnnouncementBar } from '@/components/layout/announcement-bar';
+import { SiteSettingsRuntime } from '@/components/layout/site-settings-runtime';
 
 /**
  * Renders the public storefront chrome (skip link, sticky navbar, footer) around
@@ -17,10 +19,18 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isStandalone = pathname?.startsWith('/admin') || pathname?.startsWith('/login');
 
-  if (isStandalone) return <>{children}</>;
+  // Brand colour / favicon overrides apply on every surface (admin included).
+  if (isStandalone)
+    return (
+      <>
+        <SiteSettingsRuntime />
+        {children}
+      </>
+    );
 
   return (
     <>
+      <SiteSettingsRuntime />
       <a
         href="#main"
         className="bg-foreground text-background sr-only z-[60] rounded-full px-4 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:top-4 focus:left-4"
@@ -28,6 +38,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <div className="flex min-h-screen flex-col">
+        <AnnouncementBar />
         <Navbar />
         <main id="main" className="flex-1">
           {children}
