@@ -25,8 +25,8 @@ export interface ProductFormValues {
   price: string;
   salePrice: string;
   stock: string;
-  /** Category *slug* (resolved to a category id on save). */
-  categorySlug: string;
+  /** Firestore category id (references the `categories` collection). */
+  categoryId: string;
   brandId: string;
   featured: boolean;
   active: boolean;
@@ -48,7 +48,7 @@ export const EMPTY_PRODUCT: ProductFormValues = {
   price: '',
   salePrice: '',
   stock: '',
-  categorySlug: '',
+  categoryId: '',
   brandId: '',
   featured: false,
   active: true,

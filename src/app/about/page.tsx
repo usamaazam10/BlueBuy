@@ -5,11 +5,13 @@ import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { SectionTitle } from '@/components/common/section-title';
 import { Reveal, Stagger, StaggerItem } from '@/components/common/motion';
+import { absoluteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'About',
   description:
     'BlueBuy designs premium, minimal technology for everyday life — built to last and made responsibly.',
+  alternates: { canonical: absoluteUrl('/about/') },
 };
 
 const STATS = [

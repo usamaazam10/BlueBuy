@@ -28,6 +28,21 @@ export const metadata: Metadata = {
   applicationName: SITE_CONFIG.name,
   authors: [{ name: SITE_CONFIG.name }],
   keywords: ['ecommerce', 'shop', 'BlueBuy', 'Next.js'],
+  // Site-wide social-share defaults. Pages override title/description via their
+  // own metadata; product pages set richer, per-product OG/Twitter + canonical
+  // (see @/lib/seo). Without these, non-product pages produce no link preview.
+  openGraph: {
+    type: 'website',
+    siteName: SITE_CONFIG.name,
+    title: SITE_CONFIG.name,
+    description: SITE_CONFIG.description,
+    url: env.siteUrl,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_CONFIG.name,
+    description: SITE_CONFIG.description,
+  },
 };
 
 export const viewport: Viewport = {

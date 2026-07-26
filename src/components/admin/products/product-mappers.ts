@@ -6,21 +6,10 @@
  * numbers, ids, and Cloudinary metadata. Keeping the conversion here means the
  * form component stays declarative and the repository stays UI-agnostic.
  */
-import { ADMIN_CATEGORIES } from '@/data/admin/categories';
 import type { Product } from '@/types/models';
 import type { ProductCreateInput, ProductImageInput } from '@/lib/validations';
 import type { GalleryImage } from '@/components/admin/ui/image-uploader';
 import type { ProductFormValues, ProductSpecRow } from './product-form.types';
-
-/** Resolve a category *slug* to its Firestore category id. */
-export function resolveCategoryId(slug: string): string {
-  return ADMIN_CATEGORIES.find((category) => category.slug === slug)?.id ?? slug;
-}
-
-/** Resolve a category id back to its slug (for loading into the form). */
-function categoryIdToSlug(id: string): string {
-  return ADMIN_CATEGORIES.find((category) => category.id === id)?.slug ?? id;
-}
 
 /** Parse a comma/newline-separated keyword string into a clean array. */
 function parseKeywords(raw: string): string[] {
@@ -82,7 +71,7 @@ export function formToProductInput(
     shortDescription: values.shortDescription.trim(),
     price: toNumber(values.price),
     salePrice: salePriceRaw === '' ? null : toNumber(salePriceRaw),
-    categoryId: resolveCategoryId(values.categorySlug),
+    categoryId: values.categoryId,
     brandId: values.brandId,
     gallery,
     thumbnail: gallery[0]?.url ?? '',
@@ -135,7 +124,7 @@ export function productToFormValues(product: Product): ProductFormValues {
     price: String(product.price),
     salePrice: product.salePrice != null ? String(product.salePrice) : '',
     stock: String(product.stock),
-    categorySlug: categoryIdToSlug(product.categoryId),
+    categoryId: product.categoryId,
     brandId: product.brandId,
     featured: product.featured,
     active: product.active,
@@ -150,7 +139,7 @@ export function productToFormValues(product: Product): ProductFormValues {
 
 /** Field-level errors keyed by form field name. */
 export type ProductFormErrors = Partial<
-  Record<'title' | 'slug' | 'price' | 'salePrice' | 'categorySlug' | 'brandId', string>
+  Record<'title' | 'slug' | 'price' | 'salePrice' | 'categoryId' | 'brandId', string>
 >;
 
 /**
@@ -185,7 +174,7 @@ export function validateProductForm(values: ProductFormValues): ProductFormError
     }
   }
 
-  if (!values.categorySlug) errors.categorySlug = 'Choose a category.';
+  if (!values.categoryId) errors.categoryId = 'Choose a category.';
   if (!values.brandId) errors.brandId = 'Choose a brand.';
 
   return errors;

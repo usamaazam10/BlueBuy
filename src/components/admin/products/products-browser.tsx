@@ -14,9 +14,9 @@ import { Pagination } from '@/components/admin/ui/pagination';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { ProductRepository } from '@/repositories';
+import { useCategoriesQuery, useBrandsQuery } from '@/hooks/queries';
 import { LOW_STOCK_THRESHOLD } from '@/data/admin/products';
-import { ADMIN_CATEGORIES, getAdminCategoryBySlug } from '@/data/admin/categories';
-import { getBrandById } from '@/data/admin/brands';
+import { humanizeId } from '@/lib/mappers/store';
 import { formatPrice } from '@/lib/format';
 import type { FirestoreDate, Product } from '@/types/models';
 import type { ProductStatus } from '@/data/admin/types';
@@ -36,7 +36,7 @@ interface ProductRow {
   id: string;
   slug: string;
   title: string;
-  category: string;
+  categoryId: string;
   brandId: string;
   price: number;
   compareAtPrice?: number;
@@ -55,11 +55,6 @@ function toISO(date: FirestoreDate): string {
   return date.toDate().toISOString();
 }
 
-/** Map a category id back to its slug (for filter/display parity). */
-function categorySlugFromId(categoryId: string): string {
-  return ADMIN_CATEGORIES.find((c) => c.id === categoryId)?.slug ?? categoryId;
-}
-
 /** Map a stored `Product` into the flattened row shape the table renders. */
 function toRow(product: Product): ProductRow {
   const onSale = product.salePrice != null && product.salePrice < product.price;
@@ -67,7 +62,7 @@ function toRow(product: Product): ProductRow {
     id: product.id,
     slug: product.slug,
     title: product.title,
-    category: categorySlugFromId(product.categoryId),
+    categoryId: product.categoryId,
     brandId: product.brandId,
     price: onSale ? (product.salePrice as number) : product.price,
     compareAtPrice: onSale ? product.price : undefined,
@@ -80,7 +75,11 @@ function toRow(product: Product): ProductRow {
 }
 
 /** Extracts a comparable value for a given sort key. */
-function sortValue(product: ProductRow, key: string): string | number {
+function sortValue(
+  product: ProductRow,
+  key: string,
+  names: { category: Map<string, string>; brand: Map<string, string> }
+): string | number {
   switch (key) {
     case 'price':
       return product.price;
@@ -89,9 +88,9 @@ function sortValue(product: ProductRow, key: string): string | number {
     case 'title':
       return product.title.toLowerCase();
     case 'category':
-      return product.category;
+      return (names.category.get(product.categoryId) ?? '').toLowerCase();
     case 'brand':
-      return getBrandById(product.brandId)?.name ?? '';
+      return (names.brand.get(product.brandId) ?? '').toLowerCase();
     case 'status':
       return product.status;
     default:
@@ -102,6 +101,22 @@ function sortValue(product: ProductRow, key: string): string | number {
 export function ProductsBrowser() {
   const router = useRouter();
   const toast = useToast();
+
+  // Live taxonomy for display + filtering (same Firestore source as the storefront).
+  const { data: categoriesData } = useCategoriesQuery();
+  const { data: brandsData } = useBrandsQuery();
+  const categories = React.useMemo(
+    () => [...(categoriesData ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [categoriesData]
+  );
+  const categoryNameById = React.useMemo(
+    () => new Map((categoriesData ?? []).map((c) => [c.id, c.name])),
+    [categoriesData]
+  );
+  const brandNameById = React.useMemo(
+    () => new Map((brandsData ?? []).map((b) => [b.id, b.name])),
+    [brandsData]
+  );
 
   const [products, setProducts] = React.useState<ProductRow[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -144,22 +159,23 @@ export function ProductsBrowser() {
 
   const filtered = React.useMemo(() => {
     const query = search.trim().toLowerCase();
+    const names = { category: categoryNameById, brand: brandNameById };
     const result = products.filter((product) => {
-      if (category !== 'all' && product.category !== category) return false;
+      if (category !== 'all' && product.categoryId !== category) return false;
       if (status !== 'all' && product.status !== status) return false;
       if (query && !product.title.toLowerCase().includes(query) && !product.slug.includes(query))
         return false;
       return true;
     });
     result.sort((a, b) => {
-      const av = sortValue(a, sort.key);
-      const bv = sortValue(b, sort.key);
+      const av = sortValue(a, sort.key, names);
+      const bv = sortValue(b, sort.key, names);
       if (av < bv) return sort.dir === 'asc' ? -1 : 1;
       if (av > bv) return sort.dir === 'asc' ? 1 : -1;
       return 0;
     });
     return result;
-  }, [products, search, category, status, sort]);
+  }, [products, search, category, status, sort, categoryNameById, brandNameById]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -226,7 +242,7 @@ export function ProductsBrowser() {
       hideOnMobile: true,
       cell: (p) => (
         <span className="text-muted-foreground">
-          {getAdminCategoryBySlug(p.category)?.name ?? p.category}
+          {categoryNameById.get(p.categoryId) ?? humanizeId(p.categoryId)}
         </span>
       ),
     },
@@ -236,7 +252,7 @@ export function ProductsBrowser() {
       sortable: true,
       hideOnMobile: true,
       cell: (p) => (
-        <span className="text-muted-foreground">{getBrandById(p.brandId)?.name ?? '—'}</span>
+        <span className="text-muted-foreground">{brandNameById.get(p.brandId) ?? '—'}</span>
       ),
     },
     {
@@ -277,7 +293,7 @@ export function ProductsBrowser() {
       cell: (p) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Link
-            href={`/admin/products/${p.id}`}
+            href={`/admin/products/edit?id=${p.id}`}
             aria-label={`Edit ${p.title}`}
             className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-colors"
           >
@@ -354,8 +370,8 @@ export function ProductsBrowser() {
             className="sm:w-40"
           >
             <option value="all">All categories</option>
-            {ADMIN_CATEGORIES.map((c) => (
-              <option key={c.id} value={c.slug}>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
@@ -414,7 +430,7 @@ export function ProductsBrowser() {
         rowKey={(p) => p.id}
         sort={sort}
         onSortChange={toggleSort}
-        onRowClick={(p) => router.push(`/admin/products/${p.id}`)}
+        onRowClick={(p) => router.push(`/admin/products/edit?id=${p.id}`)}
         empty={
           <EmptyState
             icon={Package}

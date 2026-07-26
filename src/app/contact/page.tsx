@@ -3,10 +3,12 @@ import { Container } from '@/components/layout/container';
 import { ContactForm } from '@/components/sections/contact-form';
 import { ContactDetails } from '@/components/sections/contact-details';
 import { Reveal } from '@/components/common/motion';
+import { absoluteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Contact',
   description: 'Get in touch with the BlueBuy team — we’re here to help 7 days a week.',
+  alternates: { canonical: absoluteUrl('/contact/') },
 };
 
 export default function ContactPage() {

@@ -9,8 +9,7 @@ import { Breadcrumb } from '@/components/admin/ui/breadcrumb';
 import { Field, Input, Select, Switch, Label } from '@/components/admin/ui/control';
 import { RichTextEditor } from '@/components/admin/ui/rich-text-editor';
 import { ImageUploader, type GalleryImage } from '@/components/admin/ui/image-uploader';
-import { ADMIN_CATEGORIES } from '@/data/admin/categories';
-import { BRANDS } from '@/data/admin/brands';
+import { useCategoriesQuery, useBrandsQuery } from '@/hooks/queries';
 import { useToast } from '@/components/ui/toast';
 import { ProductRepository } from '@/repositories';
 import { uploadImage, CloudinaryError, type CloudinaryUploadResult } from '@/services/cloudinary';
@@ -77,11 +76,33 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
   const router = useRouter();
   const toast = useToast();
 
-  const [values, setValues] = React.useState<ProductFormValues>(() => ({
-    ...initial,
-    categorySlug: initial.categorySlug || ADMIN_CATEGORIES[0]?.slug || '',
-    brandId: initial.brandId || BRANDS[0]?.id || '',
-  }));
+  // Live taxonomy — the category/brand pickers and the ids we persist come from
+  // Firestore (the same source the storefront resolves against), never mock data.
+  const { data: categoriesData } = useCategoriesQuery();
+  const { data: brandsData } = useBrandsQuery();
+  const categories = React.useMemo(
+    () => [...(categoriesData ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [categoriesData]
+  );
+  const brands = React.useMemo(
+    () => [...(brandsData ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+    [brandsData]
+  );
+
+  const [values, setValues] = React.useState<ProductFormValues>(() => ({ ...initial }));
+
+  // In create mode, default the pickers to the first available option once the
+  // live taxonomy loads (only while the field is still empty, so we never stomp
+  // a user's choice or an edit-mode value).
+  React.useEffect(() => {
+    if (mode !== 'create') return;
+    setValues((prev) => {
+      const categoryId = prev.categoryId || categories[0]?.id || '';
+      const brandId = prev.brandId || brands[0]?.id || '';
+      if (categoryId === prev.categoryId && brandId === prev.brandId) return prev;
+      return { ...prev, categoryId, brandId };
+    });
+  }, [mode, categories, brands]);
   const [slugEdited, setSlugEdited] = React.useState(mode === 'edit');
   const [tagDraft, setTagDraft] = React.useState('');
   const [errors, setErrors] = React.useState<ProductFormErrors>({});
@@ -509,28 +530,50 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
           </Section>
 
           <Section title="Organization">
-            <Field label="Category" htmlFor="category" error={errors.categorySlug}>
+            <Field
+              label="Category"
+              htmlFor="category"
+              error={errors.categoryId}
+              hint={
+                categories.length === 0
+                  ? 'No categories yet — create one under Categories first.'
+                  : undefined
+              }
+            >
               <Select
                 id="category"
-                value={values.categorySlug}
-                onChange={(e) => set('categorySlug', e.target.value)}
-                disabled={submitting}
+                value={values.categoryId}
+                onChange={(e) => set('categoryId', e.target.value)}
+                disabled={submitting || categories.length === 0}
               >
-                {ADMIN_CATEGORIES.map((c) => (
-                  <option key={c.id} value={c.slug}>
+                <option value="" disabled>
+                  Select a category…
+                </option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Brand" htmlFor="brand" error={errors.brandId}>
+            <Field
+              label="Brand"
+              htmlFor="brand"
+              error={errors.brandId}
+              hint={
+                brands.length === 0 ? 'No brands yet — create one under Brands first.' : undefined
+              }
+            >
               <Select
                 id="brand"
                 value={values.brandId}
                 onChange={(e) => set('brandId', e.target.value)}
-                disabled={submitting}
+                disabled={submitting || brands.length === 0}
               >
-                {BRANDS.map((b) => (
+                <option value="" disabled>
+                  Select a brand…
+                </option>
+                {brands.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
                   </option>

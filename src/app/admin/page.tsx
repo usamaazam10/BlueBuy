@@ -1,3 +1,6 @@
+'use client';
+
+import * as React from 'react';
 import Link from 'next/link';
 import {
   Package,
@@ -5,37 +8,68 @@ import {
   Tag,
   AlertTriangle,
   Plus,
-  ShoppingCart,
-  Users,
   FolderPlus,
   ArrowUpRight,
+  Inbox,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/admin/ui/page-header';
 import { StatCard } from '@/components/admin/ui/stat-card';
 import { StatusBadge } from '@/components/admin/ui/status-badge';
+import { OrderStatusBadge } from '@/components/admin/orders/order-status-badge';
 import { ProductMedia } from '@/components/product/product-media';
-import { ADMIN_PRODUCTS, LOW_STOCK_THRESHOLD } from '@/data/admin/products';
-import { ADMIN_CATEGORIES } from '@/data/admin/categories';
-import { BRANDS } from '@/data/admin/brands';
-import { RECENT_ACTIVITY } from '@/data/admin/activity';
-import { getBrandById } from '@/data/admin/brands';
+import {
+  useProductsQuery,
+  useCategoriesQuery,
+  useBrandsQuery,
+  useOrdersQuery,
+} from '@/hooks/queries';
+import { LOW_STOCK_THRESHOLD } from '@/data/admin/products';
 import { formatPrice } from '@/lib/format';
-import type { ActivityKind } from '@/data/admin/types';
+import type { FirestoreDate, Product } from '@/types/models';
 
-const ACTIVITY_ICON: Record<ActivityKind, typeof Package> = {
-  product: Package,
-  order: ShoppingCart,
-  category: FolderTree,
-  brand: Tag,
-  customer: Users,
-};
+/** Coerce a Firestore timestamp (Timestamp | Date | null) to sortable millis. */
+function toMillis(date: FirestoreDate): number {
+  if (!date) return 0;
+  if (date instanceof Date) return date.getTime();
+  if (typeof (date as { toMillis?: () => number }).toMillis === 'function') {
+    return (date as { toMillis: () => number }).toMillis();
+  }
+  return 0;
+}
 
+/**
+ * Admin dashboard — a live overview of the catalogue and recent orders.
+ *
+ * Everything here reads real Firestore data through the shared query hooks (the
+ * same source the storefront and the rest of the admin use), so the numbers
+ * always match reality. Fabricated period-over-period trends were intentionally
+ * removed — there is no historical snapshot to compute them from, and showing a
+ * made-up delta on a real store is misleading.
+ */
 export default function DashboardPage() {
-  const lowStock = ADMIN_PRODUCTS.filter((p) => p.stock <= LOW_STOCK_THRESHOLD).length;
-  const recentProducts = [...ADMIN_PRODUCTS]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 5);
+  const products = useProductsQuery();
+  const categories = useCategoriesQuery();
+  const brands = useBrandsQuery();
+  const orders = useOrdersQuery();
+
+  const productList = React.useMemo(() => products.data ?? [], [products.data]);
+  const brandNameById = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const brand of brands.data ?? []) map.set(brand.id, brand.name);
+    return map;
+  }, [brands.data]);
+
+  const lowStock = productList.filter((p) => p.stock <= LOW_STOCK_THRESHOLD).length;
+  const recentProducts = React.useMemo(
+    () =>
+      [...productList].sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt)).slice(0, 5),
+    [productList]
+  );
+  const recentOrders = (orders.data ?? []).slice(0, 5);
+
+  /** Show a dash while the underlying query is still loading. */
+  const stat = (query: { isLoading: boolean }, value: number) => (query.isLoading ? '—' : value);
 
   return (
     <div>
@@ -55,37 +89,33 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total products"
-          value={ADMIN_PRODUCTS.length}
+          value={stat(products, productList.length)}
           icon={Package}
-          trend={8.2}
-          caption="vs. last month"
+          caption="In your catalogue"
         />
         <StatCard
           label="Categories"
-          value={ADMIN_CATEGORIES.length}
+          value={stat(categories, categories.data?.length ?? 0)}
           icon={FolderTree}
-          trend={0}
-          caption="No change"
+          caption="Active categories"
         />
         <StatCard
           label="Brands"
-          value={BRANDS.length}
+          value={stat(brands, brands.data?.length ?? 0)}
           icon={Tag}
-          trend={16.7}
-          caption="vs. last month"
+          caption="Active brands"
         />
         <StatCard
           label="Low stock"
-          value={lowStock}
+          value={stat(products, lowStock)}
           icon={AlertTriangle}
-          trend={-4.1}
-          caption="Needs restocking"
+          caption={`${LOW_STOCK_THRESHOLD} or fewer in stock`}
         />
       </div>
 
       {/* Content grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Recent products */}
+        {/* Recently updated products */}
         <div className="border-border bg-card rounded-xl border lg:col-span-2">
           <div className="border-border flex items-center justify-between border-b px-5 py-4">
             <h2 className="text-foreground text-sm font-semibold">Recently updated</h2>
@@ -96,65 +126,84 @@ export default function DashboardPage() {
               View all <ArrowUpRight className="size-3.5" />
             </Link>
           </div>
-          <ul className="divide-border divide-y">
-            {recentProducts.map((product) => {
-              const brand = getBrandById(product.brandId);
-              return (
+          {products.isLoading ? (
+            <p className="text-muted-foreground px-5 py-8 text-sm">Loading products…</p>
+          ) : recentProducts.length === 0 ? (
+            <EmptyRow
+              icon={Package}
+              label="No products yet"
+              action={{ href: '/admin/products/new', label: 'Add your first product' }}
+            />
+          ) : (
+            <ul className="divide-border divide-y">
+              {recentProducts.map((product) => (
                 <li key={product.id}>
                   <Link
-                    href={`/admin/products/${product.id}`}
+                    href={`/admin/products/edit?id=${product.id}`}
                     className="hover:bg-muted/40 flex items-center gap-3 px-5 py-3 transition-colors"
                   >
                     <span className="border-border size-10 shrink-0 overflow-hidden rounded-lg border">
-                      <ProductMedia
-                        seed={product.images[0] ?? product.slug}
-                        accent={product.accent}
-                        className="h-full w-full"
-                      />
+                      <ProductThumb product={product} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-foreground truncate text-sm font-medium">
                         {product.title}
                       </p>
-                      <p className="text-muted-foreground truncate text-xs">{brand?.name ?? '—'}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {brandNameById.get(product.brandId) ?? '—'}
+                      </p>
                     </div>
                     <span className="text-foreground hidden text-sm font-medium tabular-nums sm:block">
                       {formatPrice(product.price)}
                     </span>
-                    <StatusBadge status={product.status} />
+                    <StatusBadge status={product.active ? 'active' : 'draft'} />
                   </Link>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
         </div>
 
-        {/* Recent activity */}
+        {/* Recent orders */}
         <div className="border-border bg-card rounded-xl border">
-          <div className="border-border border-b px-5 py-4">
-            <h2 className="text-foreground text-sm font-semibold">Recent activity</h2>
+          <div className="border-border flex items-center justify-between border-b px-5 py-4">
+            <h2 className="text-foreground text-sm font-semibold">Recent orders</h2>
+            <Link
+              href="/admin/orders"
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs font-medium transition-colors"
+            >
+              View all <ArrowUpRight className="size-3.5" />
+            </Link>
           </div>
-          <ol className="p-5">
-            {RECENT_ACTIVITY.map((item, index) => {
-              const Icon = ACTIVITY_ICON[item.kind];
-              const isLast = index === RECENT_ACTIVITY.length - 1;
-              return (
-                <li key={item.id} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <span className="border-border bg-background text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full border">
-                      <Icon className="size-4" />
-                    </span>
-                    {!isLast && <span className="bg-border my-1 w-px flex-1" />}
-                  </div>
-                  <div className={isLast ? 'pb-0' : 'pb-5'}>
-                    <p className="text-foreground text-sm font-medium">{item.title}</p>
-                    <p className="text-muted-foreground text-sm">{item.detail}</p>
-                    <p className="text-muted-foreground mt-0.5 text-xs">{item.time}</p>
-                  </div>
+          {orders.isLoading ? (
+            <p className="text-muted-foreground px-5 py-8 text-sm">Loading orders…</p>
+          ) : recentOrders.length === 0 ? (
+            <EmptyRow icon={Inbox} label="No orders yet" />
+          ) : (
+            <ul className="divide-border divide-y">
+              {recentOrders.map((order) => (
+                <li key={order.id}>
+                  <Link
+                    href="/admin/orders"
+                    className="hover:bg-muted/40 flex items-center gap-3 px-5 py-3 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground truncate text-sm font-medium">
+                        {order.customer.fullName}
+                      </p>
+                      <p className="text-muted-foreground truncate text-xs">{order.orderId}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-foreground text-sm font-medium tabular-nums">
+                        {formatPrice(order.total)}
+                      </span>
+                      <OrderStatusBadge status={order.status} />
+                    </div>
+                  </Link>
                 </li>
-              );
-            })}
-          </ol>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -190,6 +239,39 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Product thumbnail: the Cloudinary image if present, else placeholder art. */
+function ProductThumb({ product }: { product: Product }) {
+  const src = product.thumbnail || product.gallery[0]?.url || '';
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary src under static export
+    return <img src={src} alt={product.title} className="h-full w-full object-cover" />;
+  }
+  return <ProductMedia seed={product.slug} accent="#6366f1" className="h-full w-full" />;
+}
+
+/** Shared empty state for the dashboard panels. */
+function EmptyRow({
+  icon: Icon,
+  label,
+  action,
+}: {
+  icon: typeof Package;
+  label: string;
+  action?: { href: string; label: string };
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
+      <Icon className="text-muted-foreground size-6" aria-hidden="true" />
+      <p className="text-muted-foreground text-sm">{label}</p>
+      {action && (
+        <Link href={action.href} className="text-brand text-xs font-medium hover:underline">
+          {action.label}
+        </Link>
+      )}
     </div>
   );
 }
