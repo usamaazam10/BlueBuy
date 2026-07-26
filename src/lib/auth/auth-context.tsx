@@ -46,8 +46,8 @@ async function toAuthUser(user: User): Promise<AuthUser> {
   let role: Role = DEFAULT_ROLE;
   try {
     // Custom claims are the source of truth for roles; they are signed by
-    // Firebase and cannot be forged client-side. Absent a claim, fall back to
-    // the default role (see `roles.ts`).
+    // Firebase and cannot be forged client-side. Absent a `role` claim the user
+    // is a `viewer` (DEFAULT_ROLE) — signing in never confers admin access.
     const { claims } = await user.getIdTokenResult();
     if (isRole(claims.role)) role = claims.role;
   } catch {

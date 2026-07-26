@@ -54,6 +54,22 @@ export function buildProductMetadata(product: StoreProduct): Metadata {
   };
 }
 
+/**
+ * Serialize a JSON-LD object for safe embedding inside a `<script>` tag.
+ *
+ * `JSON.stringify` does not escape `<`, `>` or `&`, so a product field that
+ * happens to contain `</script>` (or an HTML comment / CDATA sequence) could
+ * break out of the script element and inject markup. Escaping the significant
+ * characters as unicode escapes keeps the JSON valid while making breakout
+ * impossible. Use this instead of `JSON.stringify` for any `dangerouslySetInnerHTML`.
+ */
+export function serializeJsonLd(data: Record<string, unknown>): string {
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
 /** schema.org `Product` JSON-LD for rich search results. */
 export function productJsonLd(product: StoreProduct): Record<string, unknown> {
   return {

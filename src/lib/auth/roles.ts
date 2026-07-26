@@ -1,16 +1,16 @@
 /**
- * Role-based access control (RBAC) scaffolding.
+ * Role-based access control (RBAC).
  *
- * Authentication currently gates the entire `/admin` surface behind "is this a
- * signed-in user?", but the shape here is deliberately forward-looking: roles
- * are resolved from Firebase **custom claims** (set server-side, never trusted
- * from the client) so fine-grained permissions can be layered on later without
- * reworking the auth architecture.
+ * Roles are resolved from Firebase **custom claims** (set server-side, never
+ * trusted from the client) so admin access can never be gained simply by
+ * signing in. A user's privileges come entirely from the `role` claim on their
+ * ID token; absent that claim they are a `viewer` (see {@link DEFAULT_ROLE})
+ * with no admin access.
  *
- * To assign a role to a user, set a custom claim from a trusted environment
- * (Cloud Function / Admin SDK), e.g. `admin.auth().setCustomUserClaims(uid,
- * { role: 'editor' })`. Until then, any authenticated user is treated as an
- * `admin` (see {@link DEFAULT_ROLE}).
+ * To grant admin (or any other) role, set a custom claim from a trusted
+ * environment (Cloud Function / Admin SDK), e.g.
+ * `admin.auth().setCustomUserClaims(uid, { role: 'admin' })`. See
+ * AUTHENTICATION.md for the full runbook (first admin, assign/remove, staff).
  */
 
 /** Known roles, ordered from most to least privileged. */
@@ -18,8 +18,14 @@ export const ROLES = ['admin', 'editor', 'viewer'] as const;
 
 export type Role = (typeof ROLES)[number];
 
-/** Role granted to an authenticated user when no `role` custom claim is present. */
-export const DEFAULT_ROLE: Role = 'admin';
+/**
+ * Role granted to an authenticated user when no `role` custom claim is present.
+ *
+ * This is intentionally the **least-privileged** role: signing in alone must
+ * never confer admin access. Elevation to `editor`/`admin` happens only via a
+ * custom claim set from a trusted environment.
+ */
+export const DEFAULT_ROLE: Role = 'viewer';
 
 /** Privilege ranking — higher number means more access. */
 const ROLE_RANK: Record<Role, number> = {

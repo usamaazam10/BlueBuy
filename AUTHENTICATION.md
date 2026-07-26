@@ -4,9 +4,10 @@ Secure email/password authentication for the BlueBuy **admin dashboard** (`/admi
 built on **Firebase Authentication**. The public storefront is untouched and needs no
 sign-in.
 
-> **Scope:** authentication only. No product CRUD, no Firestore reads/writes are wired up
-> here — just sign-in, session handling, and route protection, with role-based access
-> control scaffolded for later.
+> **Scope:** sign-in, session handling, route protection, and **enforced role-based access
+> control**. Admin access is granted **only** by a Firebase custom claim (`role: 'admin'`) —
+> being signed in is never enough. Everyone else defaults to `viewer` with no admin access.
+> See [§4](#4-roles--admin-access-runbook) for the full runbook.
 
 ---
 
@@ -44,11 +45,17 @@ const user = await admin.auth().createUser({
   password: 'a-strong-password',
 });
 
-// Optional but recommended — assign a role via custom claims (see §4).
+// REQUIRED to reach /admin — without this claim the user is a `viewer` and is
+// denied by both the route guard and the Firestore rules. See §4.
 await admin.auth().setCustomUserClaims(user.uid, { role: 'admin' });
 ```
 
-Then go to [`/login`](http://localhost:3000/login), sign in, and you'll land on `/admin`.
+> **Creating a user is not the same as making them an admin.** A brand-new account has **no
+> role claim**, so it defaults to `viewer` and cannot access `/admin` or write any data.
+> Admin access exists **only** after the `role: 'admin'` custom claim is set (§4).
+
+Then go to [`/login`](http://localhost:3000/login), sign in, and — once the admin claim is
+set — you'll land on `/admin`.
 
 ### Local development without real Firebase
 
@@ -79,7 +86,7 @@ to the Auth emulator when this flag is on.
 | -------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Firebase flows | [`src/firebase/auth.ts`](src/firebase/auth.ts)                   | `signInWithEmail`, `signOutUser`, `observeAuthState`. The **only** place that calls the Firebase Auth SDK. Maps SDK errors to friendly messages. |
 | React state    | [`src/lib/auth/auth-context.tsx`](src/lib/auth/auth-context.tsx) | `AuthProvider` subscribes to auth-state changes; `useAuth()` exposes `{ user, loading, configured, signIn, signOut }`.                           |
-| Roles          | [`src/lib/auth/roles.ts`](src/lib/auth/roles.ts)                 | `Role` type, `hasRole()` — RBAC scaffolding (see §4).                                                                                            |
+| Roles          | [`src/lib/auth/roles.ts`](src/lib/auth/roles.ts)                 | `Role` type, `hasRole()`, `DEFAULT_ROLE = 'viewer'` — RBAC, resolved from custom claims (see §4).                                                |
 | Validation     | [`src/lib/auth/schema.ts`](src/lib/auth/schema.ts)               | Zod schema for the login form.                                                                                                                   |
 
 ### Session persistence
@@ -123,7 +130,7 @@ Protection is applied once, in the admin layout — so **every current and futur
 ```tsx
 // src/app/admin/layout.tsx
 <AuthProvider>
-  <ProtectedRoute>
+  <ProtectedRoute requiredRole="admin">
     <AdminShell>{children}</AdminShell>
   </ProtectedRoute>
 </AuthProvider>
@@ -135,8 +142,10 @@ Protection is applied once, in the admin layout — so **every current and futur
 2. **`loading`** → a full-screen spinner (nothing protected renders yet).
 3. **No user** → `router.replace('/login')`; a spinner shows while the redirect is in
    flight, so no protected UI ever flashes.
-4. **Signed in but wrong role** (when a `requiredRole` is set) → an "unauthorized" screen.
-5. **Authorized** → renders the admin shell.
+4. **Signed in but not an admin** → an "unauthorized" screen. Because the layout sets
+   `requiredRole="admin"`, a signed-in `viewer` (the default) is blocked here — signing in
+   alone does **not** grant admin access.
+5. **Authorized (`role: 'admin'`)** → renders the admin shell.
 
 Protected routes: `/admin`, `/admin/products`, `/admin/categories`, `/admin/brands`,
 `/admin/settings`, and anything else added under `/admin`.
@@ -150,22 +159,138 @@ Protected routes: `/admin`, `/admin/products`, `/admin/categories`, `/admin/bran
 
 ---
 
-## 4. Roles & future permissions (scaffolding)
+## 4. Roles & admin access runbook
 
-RBAC is scaffolded but not yet enforced beyond "is authenticated":
+### How roles work
 
 - Roles are `'admin' | 'editor' | 'viewer'` ([`roles.ts`](src/lib/auth/roles.ts)), ranked by
-  privilege. `hasRole(userRole, required)` centralizes checks.
-- A user's role comes from a **Firebase custom claim** (`{ role: 'editor' }`), which is
-  signed by Firebase and **cannot be forged client-side**. Absent a claim, an
-  authenticated user defaults to `admin` (`DEFAULT_ROLE`).
-- To gate a future route/section by role, pass a prop:
+  privilege (`admin` > `editor` > `viewer`). `hasRole(userRole, required)` centralizes checks.
+- A user's role comes from a **Firebase custom claim** (`{ role: 'admin' }`) on their ID
+  token, which is **signed by Firebase** and **cannot be forged client-side**.
+- **Absent a claim, an authenticated user is a `viewer`** (`DEFAULT_ROLE`). A `viewer` has
+  **no admin access**: they are redirected/blocked at `/admin` and denied every write by the
+  Firestore rules. **Signing in is never enough — only the `role: 'admin'` claim grants
+  access.**
+- Two layers enforce this, and they agree:
+  - **UI gate** — `<ProtectedRoute requiredRole="admin">` in
+    [`admin/layout.tsx`](src/app/admin/layout.tsx). A UX convenience only.
+  - **Data boundary (authoritative)** — the `isAdmin()` function in
+    [`firestore.rules`](firestore.rules) checks `request.auth.token.role == 'admin'` on every
+    catalogue/CMS/order write. This is the real security boundary; the client gate can be
+    bypassed on a static site, the rules cannot.
 
-  ```tsx
-  <ProtectedRoute requiredRole="editor">…</ProtectedRoute>
-  ```
+### Prerequisites for managing roles
 
-Assign roles server-side with the Admin SDK (`setCustomUserClaims`), as shown in §1.
+Custom claims can **only** be set from a trusted server environment (never the browser). You
+need the **Firebase Admin SDK** with a service-account key:
+
+1. In the Firebase console: **Project settings → Service accounts → Generate new private
+   key**. Save the JSON somewhere safe and **never commit it**.
+2. Point the SDK at it:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="/absolute/path/to/service-account.json"
+   npm install firebase-admin   # in a throwaway/admin workspace, not the app bundle
+   ```
+
+Save the helper script below as `scripts/set-role.js` (run with `node scripts/set-role.js …`).
+It is a **developer/ops tool** — keep it out of the deployed static bundle.
+
+```js
+// scripts/set-role.js — assign or clear a user's role via custom claims.
+// Usage:
+//   node scripts/set-role.js <email> admin     # grant admin
+//   node scripts/set-role.js <email> viewer    # demote to viewer (removes admin)
+//   node scripts/set-role.js <email> --clear   # remove all role claims
+const admin = require('firebase-admin');
+admin.initializeApp(); // uses GOOGLE_APPLICATION_CREDENTIALS
+
+const [email, role] = process.argv.slice(2);
+const VALID = ['admin', 'editor', 'viewer'];
+
+(async () => {
+  if (!email || !role) throw new Error('Usage: set-role.js <email> <admin|editor|viewer|--clear>');
+  const user = await admin.auth().getUserByEmail(email);
+
+  const claims = role === '--clear' ? null : { ...user.customClaims, role };
+  if (role !== '--clear' && !VALID.includes(role)) throw new Error(`Unknown role: ${role}`);
+
+  await admin.auth().setCustomUserClaims(user.uid, claims);
+  // Force the user's existing tokens to refresh so the new claim takes effect.
+  await admin.auth().revokeRefreshTokens(user.uid);
+  console.log(`Set role=${role} for ${email} (${user.uid}). They must sign in again.`);
+})().catch((e) => {
+  console.error(e.message);
+  process.exit(1);
+});
+```
+
+> **Claims are not instant on already-signed-in sessions.** A user's role only changes when
+> a **fresh ID token** is minted. The script calls `revokeRefreshTokens()` to force this, but
+> the user must **sign out and back in** (or wait up to ~1 hour for the token to refresh) for
+> the change to take effect in the browser. On the client you can force it with
+> `getIdToken(true)`.
+
+### 4a. Create the **first** admin
+
+There is no bootstrap admin — the very first one is created by hand:
+
+1. Create the account (Firebase console → **Authentication → Users → Add user**, or Admin SDK
+   `createUser`, per §1).
+2. Grant the claim from your trusted environment:
+   ```bash
+   node scripts/set-role.js admin@bluebuy.com admin
+   ```
+3. Have them sign in at [`/login`](src/app/login/page.tsx). They now reach `/admin`.
+
+That first admin does **not** get any special power to mint other admins from the UI — role
+management stays server-side (§4b). This is deliberate: there is no in-app "make admin"
+button to abuse.
+
+### 4b. Assign the admin role to an existing user
+
+```bash
+node scripts/set-role.js person@bluebuy.com admin
+```
+
+Then tell them to sign out and back in. Verify with:
+
+```bash
+node -e "require('firebase-admin').initializeApp(); \
+  require('firebase-admin').auth().getUserByEmail('person@bluebuy.com') \
+  .then(u => console.log(u.customClaims))"
+# → { role: 'admin' }
+```
+
+### 4c. Remove the admin role
+
+Demote to `viewer` (keeps the login, drops all admin access), or clear the claim entirely:
+
+```bash
+node scripts/set-role.js person@bluebuy.com viewer   # demote — recommended
+node scripts/set-role.js person@bluebuy.com --clear  # remove all role claims
+```
+
+`revokeRefreshTokens()` (called by the script) **immediately invalidates their existing
+sessions**, so the next request forces a re-login and the reduced role. To also disable the
+account entirely, use **Authentication → Users → Disable account** in the console.
+
+### 4d. Add future staff
+
+Decide the least-privileged role that fits, then assign it:
+
+| They should…                                 | Give them | Command                                  |
+| -------------------------------------------- | --------- | ---------------------------------------- |
+| Run the whole store (catalogue, CMS, orders) | `admin`   | `node scripts/set-role.js name@… admin`  |
+| Browse only, no admin access (default)       | `viewer`  | _(nothing — this is the default)_        |
+| Future content-only role (see note)          | `editor`  | `node scripts/set-role.js name@… editor` |
+
+- The current Firestore rules recognize **only `admin`** for writes; `editor`/`viewer` have
+  no write access today. `editor` exists in the type system so a content-only tier can be
+  added later **without reworking auth** — you'd add an `isEditor()` helper to the rules and
+  gate a subsection with `<ProtectedRoute requiredRole="editor">`.
+- **Onboarding checklist:** create the account (§1) → assign the role (`set-role.js`) → share
+  `/login` → confirm they can (or can't) reach `/admin` as intended.
+- **Offboarding:** run §4c **and** disable/delete the Firebase Auth user.
 
 ---
 
@@ -174,10 +299,13 @@ Assign roles server-side with the Admin SDK (`setCustomUserClaims`), as shown in
 - **No secrets in the repo.** All Firebase config comes from `NEXT_PUBLIC_FIREBASE_*` env
   vars. The Web API key is not a secret; access control is Firebase's job.
 - **Client state is never the security boundary.** `ProtectedRoute` is a UX convenience.
-  Because this is a static site, a determined user can bypass the client gate — so any real
-  data access (once Firestore/Storage is wired up) **must** be protected by
-  [Firebase Security Rules](https://firebase.google.com/docs/rules) that verify
-  `request.auth` and, for RBAC, the `role` custom claim.
+  Because this is a static site, a determined user can bypass the client gate — so real data
+  access is protected by [Firebase Security Rules](firestore.rules) whose `isAdmin()` helper
+  verifies `request.auth.token.role == 'admin'` on every write. A signed-in `viewer` who
+  bypasses the UI still gets **permission denied** from Firestore.
+- **Roles live only in custom claims.** They are set server-side with the Admin SDK (§4),
+  signed by Firebase, and cannot be forged or self-assigned from the browser. There is no
+  in-app path to escalate your own role.
 - **No account enumeration.** Sign-in errors are deliberately vague
   ("Incorrect email or password") rather than revealing whether an account exists.
 - **No public sign-up** and **email/password only** — no social providers.

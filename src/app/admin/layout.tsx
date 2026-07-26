@@ -17,11 +17,16 @@ export const metadata: Metadata = {
  * Every `/admin/*` route is gated here: `AuthProvider` resolves the session and
  * `ProtectedRoute` redirects guests to `/login` before the shell renders, so
  * new admin pages are protected automatically with no per-page wiring.
+ *
+ * `requiredRole="admin"` means a signed-in user is **not** enough — only users
+ * carrying the `role: 'admin'` custom claim reach the dashboard; everyone else
+ * (default `viewer`) sees the "unauthorized" screen. This is the UX half of the
+ * gate; the real boundary is the Firestore rules' `isAdmin()` check.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <ProtectedRoute>
+      <ProtectedRoute requiredRole="admin">
         <ToastProvider>
           <AdminShell>{children}</AdminShell>
         </ToastProvider>

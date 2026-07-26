@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { ProductRepository } from '@/repositories';
 import { getStoreProductBySlug, getRelatedStoreProducts } from '@/lib/server/catalog';
-import { buildProductMetadata, productJsonLd } from '@/lib/seo';
+import { buildProductMetadata, productJsonLd, serializeJsonLd } from '@/lib/seo';
 import { ProductDetail } from '@/components/product/product-detail';
 
 interface ProductPageProps {
@@ -51,7 +51,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {/* schema.org Product JSON-LD, emitted in the static HTML for SEO. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <ProductDetail slug={slug} initialProduct={product} initialRelated={related} />
     </>

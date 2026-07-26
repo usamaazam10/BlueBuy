@@ -37,10 +37,29 @@ jobs:
         run: npm ci
 
       - name: Build
-        # `base_path` from configure-pages is the repo subpath (e.g. /bluebuy).
+        # Firebase/Cloudinary values are NEXT_PUBLIC_* (safe to expose) but must
+        # be present AT BUILD TIME to be inlined into the static export. Without
+        # them the exported site has no backend config and every product page /
+        # storefront read fails. Provide them as GitHub Actions repository
+        # secrets (Settings → Secrets and variables → Actions).
+        #
+        # NEXT_PUBLIC_SITE_URL is the origin ONLY (no repo subpath) — the
+        # subpath is added separately as NEXT_PUBLIC_BASE_PATH, and `absoluteUrl`
+        # (src/lib/seo.ts) composes the two. Concatenating the base_path here as
+        # well would double the subpath in every canonical/OG/sitemap URL.
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.origin }}${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.origin }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
+          NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
+          NEXT_PUBLIC_STORE_WHATSAPP: ${{ secrets.NEXT_PUBLIC_STORE_WHATSAPP }}
         run: npm run build
 
       - name: Upload artifact

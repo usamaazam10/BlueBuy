@@ -20,22 +20,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Any signed-in user is treated as an admin (see src/lib/auth/roles.ts,
-    // DEFAULT_ROLE = 'admin'). Swap for a custom-claim check to add finer roles:
-    //   function isAdmin() { return request.auth != null && request.auth.token.role == 'admin'; }
-    function isSignedIn() {
-      return request.auth != null;
+    // Admin access is granted ONLY by a Firebase custom claim (`role: 'admin'`),
+    // set server-side via the Admin SDK — never by merely being signed in. See
+    // AUTHENTICATION.md for how to assign/remove this claim. The client mirrors
+    // this in src/lib/auth/roles.ts (DEFAULT_ROLE = 'viewer'), but THIS is the
+    // real security boundary.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
     }
 
     // --- Catalogue: public read, admin write ---------------------------------
 
     match /products/{productId} {
       allow read: if true;
-      allow create, delete: if isSignedIn();
+      allow create, delete: if isAdmin();
 
       // Admins may update freely. An unauthenticated checkout may ONLY decrement
       // stock — it cannot raise stock or touch any other field.
-      allow update: if isSignedIn()
+      allow update: if isAdmin()
         || (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt'])
           && request.resource.data.stock is number
@@ -46,17 +48,17 @@ service cloud.firestore {
 
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /brands/{brandId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // --- CMS content: public read, admin write -------------------------------
@@ -67,37 +69,37 @@ service cloud.firestore {
 
     match /site_settings/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /homepage/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /footer/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /contact_information/{docId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /navigation/{itemId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /banners/{bannerId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /social_links/{linkId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // --- Orders: anonymous create (pending only), admin read/manage ----------
@@ -105,7 +107,7 @@ service cloud.firestore {
     match /orders/{orderId} {
       // Only signed-in admins may read, list, update or delete orders — order
       // documents hold customer PII, so they are never publicly readable.
-      allow get, list, update, delete: if isSignedIn();
+      allow get, list, update, delete: if isAdmin();
 
       // Anyone may place an order, but only in the initial `pending` state and
       // with a well-formed, non-empty, non-negative total. Status can only be
