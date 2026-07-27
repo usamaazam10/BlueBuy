@@ -176,8 +176,8 @@ Protected routes: `/admin`, `/admin/products`, `/admin/categories`, `/admin/bran
     [`admin/layout.tsx`](src/app/admin/layout.tsx). A UX convenience only.
   - **Data boundary (authoritative)** — the `isAdmin()` function in
     [`firestore.rules`](firestore.rules) checks `request.auth.token.role == 'admin'` on every
-    catalogue/CMS/order write. This is the real security boundary; the client gate can be
-    bypassed on a static site, the rules cannot.
+    catalogue/CMS/order write. This is the real security boundary — the client gate is a UX
+    convenience, while the rules are enforced by Firebase server-side.
 
 ### Prerequisites for managing roles
 
@@ -244,7 +244,7 @@ There is no bootstrap admin — the very first one is created by hand:
 
 That first admin does **not** get any special power to mint other admins from the UI — role
 management stays server-side (§4b). This is deliberate: there is no in-app "make admin"
-button to abuse.
+control at all.
 
 ### 4b. Assign the admin role to an existing user
 
@@ -298,14 +298,42 @@ Decide the least-privileged role that fits, then assign it:
 
 - **No secrets in the repo.** All Firebase config comes from `NEXT_PUBLIC_FIREBASE_*` env
   vars. The Web API key is not a secret; access control is Firebase's job.
-- **Client state is never the security boundary.** `ProtectedRoute` is a UX convenience.
-  Because this is a static site, a determined user can bypass the client gate — so real data
-  access is protected by [Firebase Security Rules](firestore.rules) whose `isAdmin()` helper
-  verifies `request.auth.token.role == 'admin'` on every write. A signed-in `viewer` who
-  bypasses the UI still gets **permission denied** from Firestore.
+- **Security Rules are the boundary, not client state.** `ProtectedRoute` is a UX
+  convenience; data access is enforced by [Firebase Security Rules](firestore.rules) whose
+  `isAdmin()` helper verifies `request.auth.token.role == 'admin'` on every write. A signed-in
+  `viewer` gets **permission denied** from Firestore regardless of the UI.
 - **Roles live only in custom claims.** They are set server-side with the Admin SDK (§4),
-  signed by Firebase, and cannot be forged or self-assigned from the browser. There is no
-  in-app path to escalate your own role.
+  signed by Firebase, and are not settable from the browser — there is no in-app path to
+  change your own role.
 - **No account enumeration.** Sign-in errors are deliberately vague
   ("Incorrect email or password") rather than revealing whether an account exists.
 - **No public sign-up** and **email/password only** — no social providers.
+
+## 6. Request protection (App Check)
+
+BlueBuy is a **static export with no backend and no customer accounts**, so checkout writes
+happen in the browser as an anonymous user (two scoped Firestore writes: create a `pending`
+order, and decrement product stock — see [`firestore.rules`](firestore.rules)). These writes
+are validated by Security Rules for shape, and **Firebase App Check** adds request
+attestation on top so that only requests coming from your app are accepted.
+
+**Firebase App Check** attaches a reCAPTCHA-backed token to every Firestore request. Once
+enforcement is enabled, requests without a valid token are rejected before the rules run. The
+client wiring lives in [`src/firebase/app-check.ts`](src/firebase/app-check.ts) and is a
+**no-op until you set a site key**, so nothing changes until you deliberately enable it.
+
+### Enabling App Check (recommended before launch)
+
+1. Create a **reCAPTCHA v3** site key at <https://www.google.com/recaptcha/admin>, allowlisting
+   your production domain **and `localhost`**. Put the _site_ key in
+   `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` (`.env.local`).
+2. Firebase console → **App Check** → register the web app with that reCAPTCHA provider.
+3. **Dev:** run the app, then console → App Check → _Manage debug tokens_; register the token
+   the SDK prints and set `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` so localhost gets a valid token.
+4. Roll out in **"monitor"** mode, confirm tokens are flowing for Firestore, **then switch to
+   "enforce."** Enforcing before the client sends tokens would lock out your own app.
+
+> App Check is free-plan compatible and is the recommended request-protection layer for this
+> serverless setup. If the project later moves to a backend plan, order processing can be
+> centralized in a Cloud Function for fully server-side validation — see
+> _Future: server-side order processing_ in [`ORDER_MANAGEMENT.md`](ORDER_MANAGEMENT.md).

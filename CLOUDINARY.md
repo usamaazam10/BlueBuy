@@ -39,8 +39,8 @@ This is the value for `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`.
 6. **Save.**
 
 > The client validates format (jpg/jpeg/png/webp) and size (≤ 10 MB) for fast,
-> friendly feedback, but the preset must enforce the same limits because client
-> checks can be bypassed.
+> friendly feedback; the preset must enforce the same limits because the preset
+> is the authoritative boundary for uploads.
 
 ## 3. Environment variables
 

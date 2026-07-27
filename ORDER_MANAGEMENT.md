@@ -211,24 +211,24 @@ firebase deploy --only firestore:rules
 > covers everything this app does; review it against your console rules first if
 > you've added anything there.
 
-The key clauses:
+The key clauses (admin access is a server-set `role: 'admin'` custom claim, via
+`isAdmin()` — see [`AUTHENTICATION.md`](AUTHENTICATION.md)):
 
 ```
 // Orders — order docs hold customer PII, so they are never publicly readable.
 match /orders/{orderId} {
-  allow get, list, update, delete: if request.auth != null;   // admin only
-  allow create: if request.resource.data.status == 'pending'  // customers
-    && request.resource.data.total is number
-    && request.resource.data.total >= 0
-    && request.resource.data.items.size() > 0;
+  allow get, list, update, delete: if isAdmin();              // admins only
+  allow create: if request.resource.data.status == 'pending' // customers
+    // locked to the exact fields + bounded customer/money values the
+    // checkout writes (full clause in firestore.rules).
 }
 
-// Products — public read; admins write; an unauthenticated checkout may ONLY
-// decrement stock (never raise it or touch other fields).
+// Products — public read; admins write; a checkout write may ONLY decrement
+// stock (never raise it or touch other fields).
 match /products/{productId} {
   allow read: if true;
-  allow create, delete: if request.auth != null;
-  allow update: if request.auth != null
+  allow create, delete: if isAdmin();
+  allow update: if isAdmin()
     || (
       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt'])
       && request.resource.data.stock is number
@@ -241,17 +241,41 @@ match /products/{productId} {
 **Why customers never read orders:** `OrderRepository.create` deliberately does
 **not** read the order back after writing it — it returns the value it just
 wrote. That keeps the whole `orders` collection admin-only for reads, so no
-buyer's name/phone/address is ever exposed by knowing an order number. Any
-signed-in user is treated as an admin (`DEFAULT_ROLE` in
-[`src/lib/auth/roles.ts`](src/lib/auth/roles.ts)); swap `isSignedIn()` for a
-custom-claim check (`request.auth.token.role == 'admin'`) to add finer roles.
+buyer's name/phone/address is ever exposed by knowing an order number. Admin
+access comes only from the `role: 'admin'` custom claim (`DEFAULT_ROLE` is
+`viewer` in [`src/lib/auth/roles.ts`](src/lib/auth/roles.ts)); signing in alone
+grants no write access.
 
-**Security tradeoff.** Because the app is a static export with no server and no
-customer accounts, checkout writes run anonymously — hence the two scoped
-anonymous allowances (create a `pending` order; decrement stock). A determined
-actor could create junk orders or zero out stock, but nothing worse. To harden
-for real production, move order creation + the stock decrement behind a Cloud
-Function and set both anonymous clauses to `if false`.
+**Request protection (App Check).** Because the app is a static export with no
+server, checkout writes run in the browser as an anonymous user (two scoped
+allowances: create a `pending` order; decrement stock). Enabling **Firebase App
+Check** attaches a bot-mitigation token to these requests so only your app can
+perform them — see the App Check section in
+[`AUTHENTICATION.md`](AUTHENTICATION.md). The client wiring lives in
+[`src/firebase/app-check.ts`](src/firebase/app-check.ts) and is a no-op until a
+reCAPTCHA site key is configured.
+
+## Future: server-side order processing (backend plan)
+
+When the project moves to a plan with a server runtime (Firebase **Blaze** /
+Cloud Functions), order creation can be centralized server-side for stronger
+validation and business logic — kept here so the path is ready:
+
+1. **Add a `placeOrder` Cloud Function** (Admin SDK). It receives
+   `{ customer, items: [{ productId, quantity }] }` — **not** prices or totals —
+   reads each product from Firestore, computes the totals server-side with the
+   same pricing config, then creates the order and decrements stock inside one
+   Admin-SDK transaction (which runs with full privileges).
+2. **Point the client at it.** Have `orderService.placeOrder` call the callable
+   (`httpsCallable(getFunctions(app), 'placeOrder')`) instead of writing via
+   `OrderRepository.create`; map the returned order to the `Order` type.
+3. **Simplify the rules.** With writes going through the trusted function, set
+   the two anonymous allowances (order `create`, product stock `update`) to
+   `if false` — the Admin SDK runs with full privileges (above rules), so
+   checkout keeps working while the collections become write-closed to clients.
+
+The repository/service/hook boundaries mean only `order.service.ts` and
+`firestore.rules` change; the UI is untouched.
 
 ## Future payment-gateway integration
 

@@ -9,6 +9,7 @@
  */
 import { initializeApp, getApp, getApps, type FirebaseApp } from 'firebase/app';
 import { firebaseConfig, isFirebaseConfigured, getMissingConfigKeys } from './config';
+import { initAppCheck } from './app-check';
 
 let cachedApp: FirebaseApp | null = null;
 
@@ -26,6 +27,11 @@ export function getFirebaseApp(): FirebaseApp {
   }
 
   cachedApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+  // Attach App Check in the browser (no-op until a reCAPTCHA site key is set),
+  // so anonymous checkout writes carry an attestation token. See ./app-check.
+  initAppCheck(cachedApp);
+
   return cachedApp;
 }
 

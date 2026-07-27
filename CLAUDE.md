@@ -4,13 +4,14 @@ Guidance for working in the BlueBuy repo. Read this before making changes.
 
 ## What this is
 
-Ecommerce app: **Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui**.
+Ecommerce app: **Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui**, backed by **Firebase (client SDK)** and **Cloudinary**, shipped as a **static export** to GitHub Pages.
+
 Two surfaces:
 
-- **Storefront** (`/`, `/products`, `/product/[slug]`, `/about`, `/contact`) — public, mock-data driven.
-- **Admin dashboard** (`/admin/*`) — UI-only prototype (no auth, no persistence). See "Admin" below.
+- **Storefront** (`/`, `/products`, `/product/[slug]`, `/about`, `/contact`, `/cart`, `/checkout`) — public. Product/category/brand/CMS content comes from **Firestore**; product pages are pre-rendered at build time and hydrated with live data via React Query. Checkout creates real orders and decrements inventory.
+- **Admin dashboard** (`/admin/*`) — real, auth-gated. Product / category / brand CRUD, a CMS (homepage, hero/banners, navigation, footer, contact, social, settings), and order management — all reading and writing **Firestore**. Images upload to **Cloudinary**.
 
-Firebase is scaffolded (`src/firebase/`, `src/types/models.ts`) but **not wired into any UI**. The app ships as a **static export** to GitHub Pages.
+Auth is email/password with **custom-claim RBAC** (`role: 'admin'`); the real access boundary is [`firestore.rules`](firestore.rules). See [`AUTHENTICATION.md`](AUTHENTICATION.md).
 
 ## Commands
 
@@ -22,7 +23,7 @@ npm run build       # static export → out/
 npm run format      # prettier --write .
 ```
 
-Always run `typecheck` + `lint` before finishing. Husky + lint-staged run eslint/prettier on commit, so match Prettier formatting (run `npm run format` on new files). Prefer the Browser preview tools over `next dev` in a shell — a `dev` config exists in `.claude/launch.json`.
+Always run `typecheck` + `lint` before finishing. Husky + lint-staged run eslint/prettier on commit, so match Prettier formatting (run `npm run format` on new files). Prefer the Browser preview tools over `next dev` in a shell — a `dev` config exists in `.claude/launch.json`. **Don't run `npm run build` while the dev server is running** — the export overwrites `.next` and breaks the running dev server (restart it if you do).
 
 ## Non-negotiable conventions
 
@@ -53,29 +54,45 @@ Import via `@/` (→ `src/`). Feature types can live beside their feature; cross
 
 ## Architecture notes (non-obvious)
 
-### Storefront vs. admin chrome
+### Data access is layered — the UI never touches Firestore directly
 
-The root layout ([`src/app/layout.tsx`](src/app/layout.tsx)) only provides `<html>/<body>` + `ThemeProvider`. The storefront navbar/footer are rendered by [`SiteChrome`](src/components/layout/site-chrome.tsx), a client component that **skips its chrome under `/admin`** (via `usePathname`). The admin supplies its own shell ([`AdminShell`](src/components/admin/layout/admin-shell.tsx)). So: don't put storefront-only chrome back in the root layout, and admin pages inherit no storefront UI.
+`Firestore ← Repository ← Service ← React Query hook ← Component`.
+
+- **Repositories** ([`src/repositories/`](src/repositories/)) are the only place Firestore is read/written. Payloads are validated with Zod ([`src/lib/validations/`](src/lib/validations/)) inside the repository, so a malformed write can never reach Firestore regardless of caller. Every error is normalized to an `AppError` via `withAppError`.
+- **Services** ([`src/services/`](src/services/)) own domain orchestration (e.g. `order.service.ts` prices the cart + generates order numbers).
+- **Hooks** ([`src/hooks/queries/`](src/hooks/queries/)) are the only thing components call for data (React Query). Keep this boundary.
+
+### Firestore models vs. storefront view models
+
+- [`src/types/models.ts`](src/types/models.ts) = **Firestore documents** (`Product`, `Category`, `Brand`, etc.). Not re-exported through `@/types`.
+- [`src/types/store.ts`](src/types/store.ts) = **storefront view models** (`StoreProduct`, …). [`src/lib/mappers/store.ts`](src/lib/mappers/store.ts) is the single translation layer: it resolves a product's `categoryId`/`brandId` against the real category/brand docs, picks the current price (sale vs. base), and builds ready-to-render images. **Products reference categories/brands by Firestore id** — always source category/brand pickers from the live collections (never from `src/data/`), or the ids won't resolve.
+
+### Storefront reads: build-time + client hydration
+
+- `product/[slug]` and `sitemap.ts` read Firestore **at build time** via [`src/lib/server/catalog.ts`](src/lib/server/catalog.ts) (memoized), so each product ships as static HTML with real per-product SEO/JSON-LD. Because of this, a newly created/edited product appears on the public storefront only after the **next build + deploy** — in-app (client) reads are always live.
+- Client components read live via the query hooks, so the admin and interactive storefront always reflect current Firestore data.
 
 ### Static export gotchas (`output: 'export'`)
 
-- **Any dynamic route (`[slug]`, `[id]`) MUST export `generateStaticParams`** or the build fails. See [`src/app/admin/products/[id]/page.tsx`](src/app/admin/products/[id]/page.tsx) and `product/[slug]`.
-- No server runtime: no Route Handlers, no server actions, no `next/image` optimization (`images.unoptimized` is on). No runtime data fetching — everything is build-time/mock.
+- **Any dynamic route (`[slug]`) MUST export `generateStaticParams`** or the build fails. Product ids created at runtime aren't known at build time, so admin **edit** uses a static route with a query param — [`/admin/products/edit?id=…`](src/app/admin/products/edit/page.tsx) — not a `[id]` segment.
+- No server runtime: no Route Handlers, no server actions, no `next/image` optimization (`images.unoptimized` is on), no Cloud Functions. All Firebase/Cloudinary work is **client-side** with public `NEXT_PUBLIC_*` config; access is controlled by Firestore rules + the Cloudinary preset, not by hiding config.
 - `trailingSlash: true` and `basePath` (`NEXT_PUBLIC_BASE_PATH`) are set for GitHub Pages; use `next/link`, don't hardcode paths.
 
-### Data is mock, and layered
+### Firebase & App Check
 
-- Storefront: [`src/data/products.ts`](src/data/products.ts), [`categories.ts`](src/data/categories.ts). `Product`/`Category` UI types in [`src/types/product.ts`](src/types/product.ts).
-- Admin: [`src/data/admin/`](src/data/admin/) (`products.ts`, `brands.ts`, `categories.ts`, `activity.ts`, `nav.ts`, `types.ts`). Admin data is **derived from** storefront data but kept as separate arrays so admin edits never mutate storefront data.
-- `src/types/models.ts` = Firestore models — **separate on purpose** from UI types; not re-exported through `@/types`. Don't conflate them.
-- No stock photography anywhere: [`ProductMedia`](src/components/product/product-media.tsx) renders deterministic geometric SVG art from a `seed` + `accent`.
+- App singleton in [`src/firebase/app.ts`](src/firebase/app.ts); everything is accessed through lazy getters in [`src/firebase/`](src/firebase/) so importing never triggers init (safe for prerender). [`src/firebase/app-check.ts`](src/firebase/app-check.ts) attaches App Check in the browser and is a no-op until a reCAPTCHA site key is configured.
 
-### Admin (`/admin`) — UI only
+### `src/data/` — legacy/support data only
 
-Scope guardrails for this surface: **no auth, no Firestore, no uploads, no persistence.** Interactions (save/publish, delete, CRUD) update local component state and show ephemeral confirmations only. Reusable admin components live in [`src/components/admin/ui/`](src/components/admin/ui/) (`DataTable`, `StatCard`, `EmptyState`, `ConfirmDialog`, `ImageUploader`, `RichTextEditor` placeholder, `Pagination`, `Breadcrumb`, form controls, `PageHeader`, status badges) with a barrel `index.ts`. Design target: Vercel/Linear/Stripe — minimal, neutral, no flashy color.
+Firestore is the source of truth for products, categories, brands, CMS, and orders. `src/data/admin/` now supplies only non-catalogue bits (e.g. admin nav, `LOW_STOCK_THRESHOLD`). [`ProductMedia`](src/components/product/product-media.tsx) renders deterministic geometric SVG art from a `seed` + `accent` as a fallback when a product has no image.
+
+### Storefront vs. admin chrome
+
+The root layout ([`src/app/layout.tsx`](src/app/layout.tsx)) provides `<html>/<body>` + providers (theme, React Query, cart). The storefront navbar/footer are rendered by [`SiteChrome`](src/components/layout/site-chrome.tsx), which **skips its chrome under `/admin`** (via `usePathname`). The admin supplies its own shell ([`AdminShell`](src/components/admin/layout/admin-shell.tsx)), gated by `ProtectedRoute`. Don't put storefront chrome in the root layout.
 
 ## Guardrails
 
 - Don't modify the storefront when asked to work on admin (and vice versa) unless required.
 - Keep the app static-export-safe — no server-only APIs.
+- Keep the data-access layering intact — components go through hooks, not repositories/Firestore.
 - Verify visible changes in the browser preview (light + dark, mobile + desktop) before declaring done.
