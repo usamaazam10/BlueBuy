@@ -1,14 +1,18 @@
 import path from 'node:path';
 import type { NextConfig } from 'next';
+import { normalizeBasePath } from './src/lib/base-path';
 
 /**
- * GitHub Pages serves a project site from `https://<user>.github.io/<repo>/`,
- * so the app must be prefixed with the repo name. This is driven by an env var
- * so local dev (`/`) and production (`/<repo>`) both work without code changes.
+ * Subpath the site is served under, driven by an env var so the same code
+ * builds for every target.
  *
- * Set NEXT_PUBLIC_BASE_PATH to `/<repo-name>` in CI (see .github/workflows).
+ * Production is the custom domain `https://bluebuy.store/`, which serves from
+ * the origin root — so NEXT_PUBLIC_BASE_PATH is **empty** there (see
+ * .github/workflows/deploy.yml). A non-empty `/<repo>` prefix is only correct
+ * for a bare GitHub Pages project site; leaving one set for the custom domain
+ * makes every asset URL 404 and the page renders as unstyled HTML.
  */
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+const basePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 
 const nextConfig: NextConfig = {
   // Emit a fully static site into `out/` — required for GitHub Pages.

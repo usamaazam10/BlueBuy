@@ -29,10 +29,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Configure Pages
-        id: pages
-        uses: actions/configure-pages@v5
-
       - name: Install dependencies
         run: npm ci
 
@@ -43,13 +39,25 @@ jobs:
         # storefront read fails. Provide them as GitHub Actions repository
         # secrets (Settings → Secrets and variables → Actions).
         #
-        # NEXT_PUBLIC_SITE_URL is the origin ONLY (no repo subpath) — the
-        # subpath is added separately as NEXT_PUBLIC_BASE_PATH, and `absoluteUrl`
-        # (src/lib/seo.ts) composes the two. Concatenating the base_path here as
-        # well would double the subpath in every canonical/OG/sitemap URL.
+        # The site is served from the custom domain https://bluebuy.store/, at
+        # the ORIGIN ROOT — so the base path must be EMPTY. These were
+        # previously taken from `actions/configure-pages`, which reported the
+        # project-site values (`/BlueBuy` + github.io); every asset then
+        # resolved to /BlueBuy/_next/... which 404s on the apex domain, and the
+        # site rendered as unstyled HTML. They are pinned here instead of
+        # auto-detected so a Pages-settings change can't silently break assets.
+        #
+        # Override via repository *variables* (Settings → Secrets and variables
+        # → Actions → Variables) if the site ever moves back to a project-site
+        # URL: set SITE_BASE_PATH=/BlueBuy and SITE_URL=https://usamaazam10.github.io
+        #
+        # NEXT_PUBLIC_SITE_URL is the origin ONLY (no subpath) — the subpath is
+        # added separately as NEXT_PUBLIC_BASE_PATH, and `absoluteUrl`
+        # (src/lib/seo.ts) composes the two. Putting the base path in both would
+        # double it in every canonical/OG/sitemap URL.
         env:
-          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.origin }}
+          NEXT_PUBLIC_BASE_PATH: ${{ vars.SITE_BASE_PATH }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL || 'https://bluebuy.store' }}
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
           NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}

@@ -9,9 +9,15 @@
  * `@/firebase/config`, which reads `process.env` directly and validates the
  * required keys. Keeping a single source avoids drift between the two.
  */
+import { normalizeBasePath } from '@/lib/base-path';
+
 export const env = {
-  /** Repo subpath used for GitHub Pages deploys (e.g. `/bluebuy`). */
-  basePath: process.env.NEXT_PUBLIC_BASE_PATH ?? '',
+  /**
+   * Subpath the site is served under. Empty on the custom domain
+   * (`https://bluebuy.store/`), `/<repo>` for a GitHub Pages project site.
+   * Normalized so it always matches `basePath` in `next.config.ts`.
+   */
+  basePath: normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH),
 
   /** Public site URL, useful for absolute metadata/OG links. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',

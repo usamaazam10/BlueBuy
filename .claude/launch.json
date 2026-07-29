@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "bluebuy-static-export",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "--no-clipboard", "--listen", "4173", "out"],
+      "port": 4173
     }
   ]
 }
