@@ -2,8 +2,10 @@
 
 Deploy target: **GitHub Pages** (static export via GitHub Actions)
 Repository: **`usamaazam10/BlueBuy`** (project site)
-Default Pages URL: **https://usamaazam10.github.io/BlueBuy/**
-Custom domain: **bluebuy.store** (apex + `www`)
+Canonical URL: **https://bluebuy.store/** (apex + `www`)
+Default Pages URL: **https://usamaazam10.github.io/BlueBuy/** — 301-redirects to the
+custom domain. GitHub does this automatically whenever a custom domain is set; the
+project-site URL cannot serve content independently while `bluebuy.store` is configured.
 
 This guide is the operational runbook. Everything that could be automated has been
 done (build config, static-export hardening, CI workflow, verification). The steps
@@ -107,9 +109,13 @@ repo.
 
 **Provided automatically by the workflow — do NOT create these as secrets:**
 
-- `NEXT_PUBLIC_BASE_PATH` — set from `actions/configure-pages` (`/BlueBuy` on the
-  github.io URL, empty once a custom domain is active).
-- `NEXT_PUBLIC_SITE_URL` — set from `actions/configure-pages` (the Pages origin).
+- `NEXT_PUBLIC_BASE_PATH` — **empty**, because the site is served from the root of
+  `bluebuy.store`. Pinned in the workflow, not auto-detected.
+- `NEXT_PUBLIC_SITE_URL` — `https://bluebuy.store`. Pinned in the workflow.
+
+Both can be overridden with repository **variables** (Settings → Secrets and variables
+→ Actions → **Variables**, not Secrets) if the site ever moves: set `SITE_BASE_PATH`
+and `SITE_URL`.
 
 > Never add server/admin secrets here. The Firebase **Admin SDK service-account JSON**
 > (`*-firebase-adminsdk-*.json`) is git-ignored and must never be committed or added
@@ -121,10 +127,10 @@ repo.
 
 1. GitHub → repo → **Settings → Pages**.
 2. **Build and deployment → Source → "GitHub Actions"**.
-3. That's it — the included workflow (`configure-pages` → build → `upload-pages-artifact`
-   → `deploy-pages`) publishes `out/`. No branch (`gh-pages`) is used.
+3. That's it — the included workflow (build → `upload-pages-artifact` → `deploy-pages`)
+   publishes `out/`. No branch (`gh-pages`) is used.
 
-First successful run publishes to **https://usamaazam10.github.io/BlueBuy/**.
+Each successful run publishes to **https://bluebuy.store/**.
 
 ---
 
@@ -135,10 +141,15 @@ First successful run publishes to **https://usamaazam10.github.io/BlueBuy/**.
 
 - **Node 22** (Active LTS) with **npm dependency caching** (`cache: npm`).
 - `npm ci` (reproducible install from the lockfile).
-- `actions/configure-pages@v5` derives `NEXT_PUBLIC_BASE_PATH` and
-  `NEXT_PUBLIC_SITE_URL` automatically (project subpath, or root once a custom
-  domain is set).
+- `NEXT_PUBLIC_BASE_PATH` (empty) and `NEXT_PUBLIC_SITE_URL` (`https://bluebuy.store`)
+  are **pinned in the workflow**. They were previously derived from
+  `actions/configure-pages@v5`, which kept reporting the project-site values
+  (`/BlueBuy` + `github.io`) after the custom domain went live — every asset then
+  resolved to `/BlueBuy/_next/…`, 404'd on the apex domain, and the site rendered as
+  unstyled HTML. Pinning them removes that failure mode.
 - Production build: `npm run build` (fails on type/lint errors — no `ignoreBuildErrors`).
+- `public/CNAME` (`bluebuy.store`) ships in the artifact so the custom domain survives
+  redeploys.
 - `actions/upload-pages-artifact@v3` uploads `./out`.
 - `actions/deploy-pages@v4` deploys, with `concurrency: pages` so runs don't overlap.
 
@@ -148,8 +159,8 @@ First successful run publishes to **https://usamaazam10.github.io/BlueBuy/**.
 
 Because `usamaazam10/BlueBuy` is a **project** repo, once the custom domain is set,
 GitHub serves the site at the **apex root** (`https://bluebuy.store/`) — the
-`/BlueBuy` subpath is dropped. `configure-pages` detects the domain and rebuilds with
-an **empty base path**, so **re-run the workflow after setting the domain** (see §6.3).
+`/BlueBuy` subpath is dropped, and requests to the github.io URL are 301-redirected to
+`https://bluebuy.store/`. The workflow builds with an **empty base path** to match.
 
 ### 6.1 GoDaddy DNS records — enter these exactly
 
@@ -229,8 +240,7 @@ SEO/JSON-LD.
 
 ## 8. Post-deployment verification checklist
 
-After the first successful deploy, verify at `https://usamaazam10.github.io/BlueBuy/`
-(or `https://bluebuy.store/` once the domain is live):
+After a successful deploy, verify at `https://bluebuy.store/`:
 
 - [ ] **Homepage** (`/`) renders with hero/banners/navigation from CMS.
 - [ ] **Products listing** (`/products`) — grid loads (populated once catalog has data).
