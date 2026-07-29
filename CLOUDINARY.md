@@ -106,19 +106,38 @@ responsiveImageUrls(id); // [{ url, width }, ...]
 responsiveSrcSet(id); // "url 320w, url 640w, ..."
 ```
 
-## 6. Deleting images (not implemented)
+## 6. Deleting images — the orphaned-assets ledger
 
-`deleteImage(publicId)` is a **placeholder** and throws by design. Deletion
-requires a **signed** request using the API secret, which cannot live in the
-browser. When needed, implement it behind a trusted backend (e.g. a Firebase
-Cloud Function or a serverless endpoint) that holds the secret and calls
-Cloudinary's destroy API, then have the client call _that_ endpoint.
+Cloudinary deletion requires a **signed** request using the API secret, which
+can never live in a static browser client. `deleteImage(publicId)` therefore
+stays a loud no-op. Instead of silently leaking assets, BlueBuy uses an
+**orphaned-assets ledger** so nothing is lost and cleanup is auditable:
+
+1. When a product, category, or brand is deleted — or its image/logo is replaced
+   — the affected Cloudinary `public_id`(s) are recorded in the
+   **`orphaned_assets`** Firestore collection. This is orchestrated by
+   [`image-cleanup.service.ts`](src/services/image-cleanup.service.ts)
+   (`deleteProductWithImageCleanup`, `deleteCategoryWithImageCleanup`,
+   `deleteBrandWithImageCleanup`, `recordReplacedAsset`), which the admin
+   managers call instead of the raw repository `remove`.
+2. An operator reviews the queue at **`/admin/orphaned-assets`** ("Media
+   cleanup"): copy each `public_id`, destroy it in Cloudinary (Media Library, or
+   `cld uploader destroy <public_id>`), then mark the entry **cleaned**.
+3. Firestore rules restrict `orphaned_assets` to admins only — nothing here is
+   ever rendered on the storefront.
+
+This keeps the app fully static-export-safe (no secret shipped, no server
+runtime) while giving a real, production cleanup path. If a trusted backend
+(Blaze Cloud Function) is added later, `recordProductOrphans` / the ledger can
+feed an automated signed-destroy job — the ledger schema is unchanged.
 
 ## Files
 
-| File                                                                     | Purpose                                                           |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| [`cloudinary.config.ts`](src/services/cloudinary/cloudinary.config.ts)   | Env-sourced config, endpoints, validation constraints             |
-| [`cloudinary.service.ts`](src/services/cloudinary/cloudinary.service.ts) | `uploadImage`, validation, URL helpers, `deleteImage` placeholder |
-| [`cloudinary.types.ts`](src/services/cloudinary/cloudinary.types.ts)     | Shared types                                                      |
-| [`index.ts`](src/services/cloudinary/index.ts)                           | Barrel — import from `@/services/cloudinary`                      |
+| File                                                                            | Purpose                                                     |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| [`cloudinary.config.ts`](src/services/cloudinary/cloudinary.config.ts)          | Env-sourced config, endpoints, validation constraints       |
+| [`cloudinary.service.ts`](src/services/cloudinary/cloudinary.service.ts)        | `uploadImage`, validation, URL helpers, `deleteImage` no-op |
+| [`cloudinary.types.ts`](src/services/cloudinary/cloudinary.types.ts)            | Shared types                                                |
+| [`index.ts`](src/services/cloudinary/index.ts)                                  | Barrel — import from `@/services/cloudinary`                |
+| [`image-cleanup.service.ts`](src/services/image-cleanup.service.ts)             | Delete + record orphaned `public_id`s into the ledger       |
+| [`orphaned-asset.repository.ts`](src/repositories/orphaned-asset.repository.ts) | The `orphaned_assets` collection gateway                    |

@@ -314,14 +314,16 @@ export function responsiveSrcSet(publicId: string, options: ResponsiveOptions = 
 // --- Deletion (placeholder) ---------------------------------------------------
 
 /**
- * Delete an asset by `public_id` — **placeholder, intentionally not implemented.**
+ * Delete an asset by `public_id` — **intentionally not implemented client-side.**
  *
  * Deletion requires a *signed* request (Admin API / signed destroy), which needs
  * the Cloudinary API secret. That secret must never ship to the browser, and
- * this app has no server runtime (static export) to sign from. Implement this by
- * routing through a trusted backend (e.g. a Cloud Function or a serverless
- * endpoint) that holds the secret and calls Cloudinary's destroy API. Until then
- * this throws so callers fail loudly rather than silently no-op.
+ * this app has no server runtime (static export) to sign from. Rather than
+ * silently leaking assets, the app records deleted/replaced `public_id`s in the
+ * `orphaned_assets` ledger (see `@/services/image-cleanup.service`) and surfaces
+ * them at `/admin/orphaned-assets`, where an operator reconciles Cloudinary with
+ * a signed destroy (CLI/dashboard, or a future backend). This function stays a
+ * loud no-op so no caller assumes browser-side deletion works. See CLOUDINARY.md.
  */
 export async function deleteImage(_publicId: string): Promise<never> {
   throw new CloudinaryError(

@@ -44,6 +44,10 @@ export const COLLECTIONS = {
   navigation: 'navigation',
   banners: 'banners',
   socialLinks: 'social_links',
+
+  // ── Operations ──
+  // Ledger of Cloudinary assets whose owning document was deleted (see below).
+  orphanedAssets: 'orphaned_assets',
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
@@ -142,15 +146,25 @@ export interface Category extends BaseDocument {
   slug: string;
   name: string;
   description: string;
-  /** Optional Storage/URL image for the category. */
+  /** Cloudinary `secure_url` for the category image; null when none. */
   image: string | null;
+  /** Cloudinary `public_id` of the image, kept so it can be recorded for cleanup on delete/replace. */
+  imagePublicId: string | null;
   /** Reference → categories.id for nesting; null for a top-level category. */
   parentId: string | null;
-  /** Denormalised count of active products in this category. */
+  /** Denormalised count of active products in this category. Product counts shown in the UI are computed live from the catalogue (see `useProductCounts`); this field is a persisted hint only. */
   productCount: number;
+  /** Whether the category is promoted (e.g. surfaced first on the storefront). */
+  featured: boolean;
   /** Display ordering (ascending). */
   sortOrder: number;
   active: boolean;
+  /** SEO — page title override; falls back to `name` when empty. */
+  seoTitle: string;
+  /** SEO — meta description; falls back to `description` when empty. */
+  seoDescription: string;
+  /** SEO — meta keywords. */
+  metaKeywords: string[];
 }
 
 /** Brand document — collection: `brands`. */
@@ -158,10 +172,50 @@ export interface Brand extends BaseDocument {
   slug: string;
   name: string;
   description: string;
-  /** Brand logo URL, if any. */
+  /** Cloudinary `secure_url` for the brand logo; null when none. */
   logo: string | null;
+  /** Cloudinary `public_id` of the logo, kept so it can be recorded for cleanup on delete/replace. */
+  logoPublicId: string | null;
   website: string | null;
+  /** Whether the brand is promoted (e.g. surfaced first on the storefront). */
+  featured: boolean;
+  /** Display ordering (ascending). */
+  sortOrder: number;
   active: boolean;
+  /** SEO — page title override; falls back to `name` when empty. */
+  seoTitle: string;
+  /** SEO — meta description; falls back to `description` when empty. */
+  seoDescription: string;
+  /** SEO — meta keywords. */
+  metaKeywords: string[];
+}
+
+/**
+ * Orphaned Cloudinary asset — collection: `orphaned_assets`.
+ *
+ * When a product/category/brand is deleted (or its image replaced), the app
+ * removes the Firestore document but **cannot** delete the Cloudinary asset from
+ * the browser: destroy requires a *signed* Admin API call using the API secret,
+ * which must never ship to a static client. Instead, each affected `public_id`
+ * is recorded here so an operator can reconcile Cloudinary from the admin
+ * (copy the id, run a signed destroy via CLI/dashboard, then mark it cleaned).
+ * This turns silent orphans into a visible, auditable cleanup queue.
+ */
+export interface OrphanedAsset extends BaseDocument {
+  /** Cloudinary `public_id` to destroy. */
+  publicId: string;
+  /** Last known delivery URL, for a quick visual reference in the admin. */
+  url: string;
+  /** What kind of document the asset belonged to. */
+  sourceType: 'product' | 'category' | 'brand';
+  /** Id of the (now-deleted or edited) source document. */
+  sourceId: string;
+  /** Human-readable label of the source (e.g. the product title) for the admin list. */
+  sourceLabel: string;
+  /** True once an operator has destroyed the asset in Cloudinary. */
+  cleaned: boolean;
+  /** When it was marked cleaned; null while pending. */
+  cleanedAt: FirestoreDate;
 }
 
 /** Review document — collection: `reviews`. */

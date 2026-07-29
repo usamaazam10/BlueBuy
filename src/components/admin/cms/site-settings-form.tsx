@@ -7,6 +7,7 @@ import type { SiteSettings } from '@/types/cms';
 import { useCmsSingleton } from './use-cms-singleton';
 import { CmsFormShell, SectionCard } from './cms-form-shell';
 import { ColorField } from './color-field';
+import { LogoUploadField } from './logo-upload-field';
 
 /** Editor for the `site_settings` singleton — store identity, brand, support, region. */
 export function SiteSettingsForm() {
@@ -45,30 +46,63 @@ export function SiteSettingsForm() {
                 onChange={(e) => patch({ tagline: e.target.value })}
               />
             </Field>
-            <Field
-              label="Logo URL"
-              htmlFor="logo-url"
-              hint="Leave empty to use the built-in wordmark."
-            >
-              <Input
-                id="logo-url"
+          </SectionCard>
+
+          <SectionCard
+            title="Logos & icons"
+            description="Upload to Cloudinary or paste a URL. Leave any field empty to use the built-in BlueBuy default. Changes apply across the whole site."
+          >
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <LogoUploadField
+                label="Primary logo"
+                hint="Used everywhere unless a header/footer logo overrides it."
                 value={draft.logoUrl}
-                onChange={(e) => patch({ logoUrl: e.target.value })}
-                placeholder="https://…"
+                onChange={(v) => patch({ logoUrl: v })}
               />
-            </Field>
-            <Field
-              label="Favicon URL"
-              htmlFor="favicon-url"
-              hint="Browser-tab icon. Leave empty for the default."
-            >
-              <Input
-                id="favicon-url"
+              <LogoUploadField
+                label="Header logo"
+                hint="Shown in the site header."
+                value={draft.headerLogoUrl}
+                onChange={(v) => patch({ headerLogoUrl: v })}
+              />
+              <LogoUploadField
+                label="Footer logo"
+                hint="Shown in the site footer."
+                value={draft.footerLogoUrl}
+                onChange={(v) => patch({ footerLogoUrl: v })}
+              />
+              <LogoUploadField
+                label="Favicon"
+                hint="Browser-tab icon (square works best)."
                 value={draft.faviconUrl}
-                onChange={(e) => patch({ faviconUrl: e.target.value })}
-                placeholder="https://…"
+                onChange={(v) => patch({ faviconUrl: v })}
               />
-            </Field>
+              <LogoUploadField
+                label="Apple touch icon"
+                hint="iOS home-screen icon (180×180)."
+                value={draft.appleTouchIconUrl}
+                onChange={(v) => patch({ appleTouchIconUrl: v })}
+              />
+              <LogoUploadField
+                label="Manifest icon"
+                hint="PWA / Android icon (512×512)."
+                value={draft.manifestIconUrl}
+                onChange={(v) => patch({ manifestIconUrl: v })}
+              />
+              <LogoUploadField
+                label="Social share image"
+                hint="Open Graph card (1200×630)."
+                value={draft.ogImageUrl}
+                onChange={(v) => patch({ ogImageUrl: v })}
+                fit="cover"
+              />
+              <LogoUploadField
+                label="Email logo"
+                hint="For transactional emails (future-ready)."
+                value={draft.emailLogoUrl}
+                onChange={(v) => patch({ emailLogoUrl: v })}
+              />
+            </div>
           </SectionCard>
 
           <SectionCard

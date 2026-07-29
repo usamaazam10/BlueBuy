@@ -108,6 +108,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- Operations: orphaned Cloudinary asset ledger (admin only) ------------
+    // Records public_ids whose owning document was deleted/replaced so an admin
+    // can reconcile Cloudinary (the static client can't destroy assets itself).
+    // Not public — nothing here is rendered on the storefront.
+
+    match /orphaned_assets/{assetId} {
+      allow read, write: if isAdmin();
+    }
+
     // --- Orders: anonymous create (pending only), admin read/manage ----------
 
     match /orders/{orderId} {

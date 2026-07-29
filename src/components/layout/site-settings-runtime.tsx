@@ -2,6 +2,18 @@
 
 import * as React from 'react';
 import { useSiteSettings } from '@/hooks/queries';
+import { resolveLogos } from '@/lib/site-logo';
+
+/** Create or update a <link rel> in <head>, returning the element. */
+function upsertLink(rel: string, href: string) {
+  let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = rel;
+    document.head.appendChild(link);
+  }
+  link.href = href;
+}
 
 /**
  * Applies global `site_settings` to the live document: the brand colour (as the
@@ -27,16 +39,13 @@ export function SiteSettingsRuntime() {
     else root.style.removeProperty('--brand-accent');
   }, [settings]);
 
+  // Favicon + apple-touch icon: fall back to the built-in BlueBuy brand assets
+  // so the real logo shows in the tab out of the box, overridable via CMS.
   React.useEffect(() => {
-    if (!settings?.faviconUrl) return;
-    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = settings.faviconUrl;
-  }, [settings?.faviconUrl]);
+    const { favicon, appleTouchIcon } = resolveLogos(settings);
+    upsertLink('icon', favicon);
+    upsertLink('apple-touch-icon', appleTouchIcon);
+  }, [settings]);
 
   return null;
 }

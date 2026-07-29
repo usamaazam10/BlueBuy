@@ -19,6 +19,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
@@ -126,6 +127,32 @@ export const ProductRepository = {
   },
 
   /**
+   * Count products referencing a category — used by the category delete-safety
+   * guard so a category with assigned products can't be removed (which would
+   * orphan those references). Counts ALL products (active + inactive), since an
+   * inactive product still points at the category. Uses a server-side
+   * aggregation (no docs transferred, stays on the automatic single-field index).
+   */
+  async countByCategory(categoryId: string): Promise<number> {
+    return withAppError(async () => {
+      const snap = await getCountFromServer(
+        query(productsCollection(), where('categoryId', '==', categoryId))
+      );
+      return snap.data().count;
+    }, 'count products');
+  },
+
+  /** Count products referencing a brand — brand delete-safety guard. */
+  async countByBrand(brandId: string): Promise<number> {
+    return withAppError(async () => {
+      const snap = await getCountFromServer(
+        query(productsCollection(), where('brandId', '==', brandId))
+      );
+      return snap.data().count;
+    }, 'count products');
+  },
+
+  /**
    * Create a product. Validates the payload, rejects a duplicate slug, stamps
    * `createdAt`/`updatedAt` server-side, and returns the stored document.
    */
@@ -169,16 +196,15 @@ export const ProductRepository = {
   },
 
   /**
-   * Delete a product document.
+   * Delete a product document (Firestore only).
    *
-   * TODO(cloudinary-cleanup): This removes the Firestore record only; the
-   * product's Cloudinary assets are intentionally left in place. Secure deletion
-   * requires a *signed* Admin API call using the Cloudinary API secret, which
-   * must never ship to the browser — and this app has no server runtime (static
-   * export) to sign from. Implement asset cleanup behind a trusted backend
-   * (e.g. a Firebase Cloud Function) that reads each image's `publicId` and
-   * calls Cloudinary's destroy API. Until then, orphaned assets are an accepted
-   * trade-off. See PRODUCT_MANAGEMENT.md.
+   * This removes the record but does NOT touch Cloudinary — secure deletion
+   * needs a *signed* Admin API call using the API secret, which must never ship
+   * to a static client. Callers that own Cloudinary media should delete via
+   * `deleteProductWithImageCleanup` (see `@/services/image-cleanup.service`),
+   * which records each image's `publicId` in the `orphaned_assets` ledger so an
+   * operator can reconcile Cloudinary from `/admin/orphaned-assets`. See
+   * PRODUCT_MANAGEMENT.md / CLOUDINARY.md.
    */
   async remove(id: string): Promise<void> {
     return withAppError(async () => {

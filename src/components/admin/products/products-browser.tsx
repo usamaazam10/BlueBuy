@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, Loader2, Package, Pencil, Search, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { Pagination } from '@/components/admin/ui/pagination';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import { ProductRepository } from '@/repositories';
+import { deleteProductWithImageCleanup } from '@/services/image-cleanup.service';
 import { useCategoriesQuery, useBrandsQuery } from '@/hooks/queries';
 import { LOW_STOCK_THRESHOLD } from '@/data/admin/products';
 import { humanizeId } from '@/lib/mappers/store';
@@ -100,6 +101,7 @@ function sortValue(
 
 export function ProductsBrowser() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
 
   // Live taxonomy for display + filtering (same Firestore source as the storefront).
@@ -108,6 +110,10 @@ export function ProductsBrowser() {
   const categories = React.useMemo(
     () => [...(categoriesData ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
     [categoriesData]
+  );
+  const brands = React.useMemo(
+    () => [...(brandsData ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+    [brandsData]
   );
   const categoryNameById = React.useMemo(
     () => new Map((categoriesData ?? []).map((c) => [c.id, c.name])),
@@ -123,7 +129,10 @@ export function ProductsBrowser() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const [search, setSearch] = React.useState('');
-  const [category, setCategory] = React.useState('all');
+  // Initial category/brand filters can be deep-linked via ?category=<id>&brand=<id>
+  // (e.g. the "View products" action from the category/brand delete guard).
+  const [category, setCategory] = React.useState(() => searchParams.get('category') ?? 'all');
+  const [brand, setBrand] = React.useState(() => searchParams.get('brand') ?? 'all');
   const [status, setStatus] = React.useState<'all' | ProductStatus>('all');
   const [sort, setSort] = React.useState<SortState>({ key: 'updatedAt', dir: 'desc' });
   const [page, setPage] = React.useState(1);
@@ -155,13 +164,14 @@ export function ProductsBrowser() {
   // Reset to the first page whenever the result set changes.
   React.useEffect(() => {
     setPage(1);
-  }, [search, category, status, sort]);
+  }, [search, category, brand, status, sort]);
 
   const filtered = React.useMemo(() => {
     const query = search.trim().toLowerCase();
     const names = { category: categoryNameById, brand: brandNameById };
     const result = products.filter((product) => {
       if (category !== 'all' && product.categoryId !== category) return false;
+      if (brand !== 'all' && product.brandId !== brand) return false;
       if (status !== 'all' && product.status !== status) return false;
       if (query && !product.title.toLowerCase().includes(query) && !product.slug.includes(query))
         return false;
@@ -175,7 +185,7 @@ export function ProductsBrowser() {
       return 0;
     });
     return result;
-  }, [products, search, category, status, sort, categoryNameById, brandNameById]);
+  }, [products, search, category, brand, status, sort, categoryNameById, brandNameById]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -185,19 +195,22 @@ export function ProductsBrowser() {
       prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
     );
 
-  const hasFilters = search !== '' || category !== 'all' || status !== 'all';
+  const hasFilters = search !== '' || category !== 'all' || brand !== 'all' || status !== 'all';
   const clearFilters = () => {
     setSearch('');
     setCategory('all');
+    setBrand('all');
     setStatus('all');
   };
 
   async function handleDelete(product: ProductRow) {
     setDeletingId(product.id);
     try {
-      // Deletes the Firestore document only; Cloudinary assets are left in place
-      // on purpose (secure deletion needs a backend). See ProductRepository.remove.
-      await ProductRepository.remove(product.id);
+      // Deletes the Firestore document and records the product's Cloudinary
+      // images in the orphaned-assets ledger for later reconciliation (the
+      // static client can't destroy Cloudinary assets itself). See
+      // image-cleanup.service and /admin/orphaned-assets.
+      await deleteProductWithImageCleanup(product.id);
       setProducts((prev) => prev.filter((p) => p.id !== product.id));
       toast.success('Product deleted', `“${product.title}” was removed.`);
     } catch (error) {
@@ -373,6 +386,19 @@ export function ProductsBrowser() {
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            aria-label="Filter by brand"
+            className="sm:w-40"
+          >
+            <option value="all">All brands</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
               </option>
             ))}
           </Select>

@@ -54,7 +54,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-10 md:grid-cols-6">
           {/* Brand + newsletter */}
           <div className="col-span-2 flex flex-col gap-4 md:col-span-3">
-            <Logo />
+            <Logo surface="footer" />
             {footer!.tagline && (
               <p className="text-muted-foreground max-w-xs text-sm">{footer!.tagline}</p>
             )}

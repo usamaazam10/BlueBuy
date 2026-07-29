@@ -3,12 +3,15 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
-import { useStoreCategories, useHomepage } from '@/hooks/queries';
+import { useStoreCategories, useHomepage, useStoreProducts } from '@/hooks/queries';
+import { optimizeImageUrl } from '@/services/cloudinary';
+import { countBy } from '@/lib/product-counts';
 import { Container } from '@/components/layout/container';
 import { SectionTitle } from '@/components/common/section-title';
 import { Stagger, StaggerItem } from '@/components/common/motion';
 import { ErrorState } from '@/components/common/error-state';
 import { EmptyState } from '@/components/common/empty-state';
+import { cn } from '@/lib/utils';
 
 /** Skeleton tile matching the category card footprint. */
 function CategoryTileSkeleton() {
@@ -22,7 +25,14 @@ function CategoryTileSkeleton() {
 
 export function FeaturedCategories() {
   const { data: allCategories, isLoading, isError, refetch } = useStoreCategories();
+  const { data: storeProducts } = useStoreProducts();
   const { data: homepage } = useHomepage();
+
+  // Live product counts per category (active products only — what a shopper sees).
+  const countByCategory = React.useMemo(
+    () => countBy(storeProducts, 'categoryId'),
+    [storeProducts]
+  );
 
   // Honour the curated order/selection from the homepage CMS; when none is set,
   // fall back to all active categories in their own sort order.
@@ -58,29 +68,80 @@ export function FeaturedCategories() {
           />
         ) : (
           <Stagger className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-            {categories.map((category) => (
-              <StaggerItem key={category.id}>
-                <Link
-                  href={`/products?category=${category.slug}`}
-                  className="group border-border hover:shadow-foreground/5 focus-visible:ring-ring relative flex aspect-square flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <span
-                    aria-hidden
-                    className="absolute -top-6 -right-6 size-20 rounded-full blur-2xl transition-transform duration-500 group-hover:scale-150"
-                    style={{ backgroundColor: category.accent, opacity: 0.25 }}
-                  />
-                  <span
-                    aria-hidden
-                    className="size-9 rounded-xl"
-                    style={{ backgroundColor: category.accent, opacity: 0.9 }}
-                  />
-                  <span className="relative flex items-center justify-between">
-                    <span className="text-sm font-semibold">{category.name}</span>
-                    <ArrowUpRight className="text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                  </span>
-                </Link>
-              </StaggerItem>
-            ))}
+            {categories.map((category) => {
+              const count = countByCategory.get(category.id) ?? 0;
+              const countLabel = `${count} ${count === 1 ? 'item' : 'items'}`;
+              const hasImage = Boolean(category.image);
+              return (
+                <StaggerItem key={category.id}>
+                  <Link
+                    href={`/products?category=${category.slug}`}
+                    className="group border-border hover:shadow-foreground/5 focus-visible:ring-ring relative flex aspect-square flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    {hasImage ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary src under static export */}
+                        <img
+                          src={
+                            category.imagePublicId
+                              ? optimizeImageUrl(category.imagePublicId, {
+                                  width: 400,
+                                  height: 400,
+                                })
+                              : (category.image as string)
+                          }
+                          alt=""
+                          aria-hidden
+                          loading="lazy"
+                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <span
+                          aria-hidden
+                          className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span
+                          aria-hidden
+                          className="absolute -top-6 -right-6 size-20 rounded-full blur-2xl transition-transform duration-500 group-hover:scale-150"
+                          style={{ backgroundColor: category.accent, opacity: 0.25 }}
+                        />
+                        <span
+                          aria-hidden
+                          className="size-9 rounded-xl"
+                          style={{ backgroundColor: category.accent, opacity: 0.9 }}
+                        />
+                      </>
+                    )}
+                    <span
+                      className={cn(
+                        'relative mt-auto flex items-center justify-between',
+                        hasImage && 'text-white'
+                      )}
+                    >
+                      <span className="flex flex-col">
+                        <span className="text-sm font-semibold">{category.name}</span>
+                        <span
+                          className={cn(
+                            'text-xs',
+                            hasImage ? 'text-white/80' : 'text-muted-foreground'
+                          )}
+                        >
+                          {countLabel}
+                        </span>
+                      </span>
+                      <ArrowUpRight
+                        className={cn(
+                          'size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5',
+                          hasImage ? 'text-white/90' : 'text-muted-foreground'
+                        )}
+                      />
+                    </span>
+                  </Link>
+                </StaggerItem>
+              );
+            })}
           </Stagger>
         )}
       </Container>

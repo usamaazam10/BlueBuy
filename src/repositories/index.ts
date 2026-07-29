@@ -18,6 +18,11 @@ export { BrandRepository, type BrandRepositoryType } from './brand.repository';
 export { OrderRepository, type OrderRepositoryType } from './order.repository';
 
 export {
+  OrphanedAssetRepository,
+  type OrphanedAssetRepositoryType,
+} from './orphaned-asset.repository';
+
+export {
   SiteSettingsRepository,
   HomepageRepository,
   FooterRepository,

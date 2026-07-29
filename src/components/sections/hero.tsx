@@ -11,8 +11,13 @@ import { deriveAccent } from '@/lib/mappers/store';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-/** Decorative fallback tiles so the hero always renders before data arrives. */
-const FALLBACK_TILES = ['aura', 'vertex', 'lumen'].map((seed) => ({
+/**
+ * Purely decorative, abstract tiles used before catalogue data arrives (or when
+ * the store has no products yet). These are NOT fake products — they render the
+ * geometric `ProductMedia` art from neutral seeds, so nothing implies a listing
+ * that doesn't exist.
+ */
+const DECORATIVE_TILES = ['tile-a', 'tile-b', 'tile-c'].map((seed) => ({
   key: seed,
   src: undefined as string | undefined,
   accent: deriveAccent(seed),
@@ -34,7 +39,7 @@ export function Hero() {
           accent: product.accent,
           seed: product.slug,
         }))
-      : FALLBACK_TILES;
+      : DECORATIVE_TILES;
 
   const container = {
     hidden: {},

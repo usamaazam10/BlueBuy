@@ -11,6 +11,10 @@ import {
   FolderPlus,
   ArrowUpRight,
   Inbox,
+  ShoppingCart,
+  Clock,
+  CircleDollarSign,
+  PackageX,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/admin/ui/page-header';
@@ -60,16 +64,26 @@ export default function DashboardPage() {
     return map;
   }, [brands.data]);
 
-  const lowStock = productList.filter((p) => p.stock <= LOW_STOCK_THRESHOLD).length;
+  const lowStock = productList.filter((p) => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
+  const outOfStock = productList.filter((p) => p.stock === 0).length;
   const recentProducts = React.useMemo(
     () =>
       [...productList].sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt)).slice(0, 5),
     [productList]
   );
-  const recentOrders = (orders.data ?? []).slice(0, 5);
+
+  const orderList = React.useMemo(() => orders.data ?? [], [orders.data]);
+  const pendingOrders = orderList.filter((o) => o.status === 'pending').length;
+  // Gross revenue from every non-cancelled order (real data, not fabricated).
+  const revenue = orderList
+    .filter((o) => o.status !== 'cancelled')
+    .reduce((sum, o) => sum + (o.total || 0), 0);
+  const recentOrders = orderList.slice(0, 5);
 
   /** Show a dash while the underlying query is still loading. */
   const stat = (query: { isLoading: boolean }, value: number) => (query.isLoading ? '—' : value);
+  const money = (query: { isLoading: boolean }, value: number) =>
+    query.isLoading ? '—' : formatPrice(value);
 
   return (
     <div>
@@ -106,10 +120,34 @@ export default function DashboardPage() {
           caption="Active brands"
         />
         <StatCard
+          label="Total orders"
+          value={stat(orders, orderList.length)}
+          icon={ShoppingCart}
+          caption="All time"
+        />
+        <StatCard
+          label="Pending orders"
+          value={stat(orders, pendingOrders)}
+          icon={Clock}
+          caption="Awaiting confirmation"
+        />
+        <StatCard
+          label="Revenue"
+          value={money(orders, revenue)}
+          icon={CircleDollarSign}
+          caption="Gross, excl. cancelled"
+        />
+        <StatCard
           label="Low stock"
           value={stat(products, lowStock)}
           icon={AlertTriangle}
           caption={`${LOW_STOCK_THRESHOLD} or fewer in stock`}
+        />
+        <StatCard
+          label="Out of stock"
+          value={stat(products, outOfStock)}
+          icon={PackageX}
+          caption="Needs restocking"
         />
       </div>
 

@@ -4,7 +4,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { CartProvider } from '@/context/cart-context';
 import { SiteChrome } from '@/components/layout/site-chrome';
-import { SITE_CONFIG } from '@/constants/site';
+import { SITE_CONFIG, BRAND_ASSETS } from '@/constants/site';
 import { env } from '@/lib/env';
 import '@/styles/globals.css';
 
@@ -28,6 +28,12 @@ export const metadata: Metadata = {
   applicationName: SITE_CONFIG.name,
   authors: [{ name: SITE_CONFIG.name }],
   keywords: ['ecommerce', 'shop', 'BlueBuy', 'Next.js'],
+  // Default BlueBuy brand icons (committed under public/brand). The client
+  // SiteSettingsRuntime swaps these for any CMS overrides at runtime.
+  icons: {
+    icon: BRAND_ASSETS.favicon,
+    apple: BRAND_ASSETS.appleTouchIcon,
+  },
   // Site-wide social-share defaults. Pages override title/description via their
   // own metadata; product pages set richer, per-product OG/Twitter + canonical
   // (see @/lib/seo). Without these, non-product pages produce no link preview.
@@ -37,11 +43,13 @@ export const metadata: Metadata = {
     title: SITE_CONFIG.name,
     description: SITE_CONFIG.description,
     url: env.siteUrl,
+    images: [{ url: BRAND_ASSETS.ogImage, width: 1200, height: 630, alt: SITE_CONFIG.name }],
   },
   twitter: {
     card: 'summary_large_image',
     title: SITE_CONFIG.name,
     description: SITE_CONFIG.description,
+    images: [BRAND_ASSETS.ogImage],
   },
 };
 

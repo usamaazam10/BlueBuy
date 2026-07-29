@@ -13,6 +13,7 @@ import {
   Megaphone,
   Share2,
   Mail,
+  ImageOff,
 } from 'lucide-react';
 
 export interface AdminNavItem {
@@ -52,6 +53,12 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: Users,
     section: 'Store',
     placeholder: true,
+  },
+  {
+    label: 'Media cleanup',
+    href: '/admin/orphaned-assets',
+    icon: ImageOff,
+    section: 'System',
   },
   {
     label: 'Settings',

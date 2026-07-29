@@ -85,7 +85,11 @@ function toStoreImages(product: Product): StoreImage[] {
   if (product.gallery.length > 0) {
     return [...product.gallery]
       .sort((a: ProductImage, b: ProductImage) => a.sortOrder - b.sortOrder)
-      .map((image) => ({ url: image.url, alt: image.alt || product.title }));
+      .map((image) => ({
+        url: image.url,
+        alt: image.alt || product.title,
+        publicId: image.publicId || undefined,
+      }));
   }
   if (product.thumbnail) {
     return [{ url: product.thumbnail, alt: product.title }];
@@ -128,10 +132,13 @@ export function toStoreProduct(product: Product, lookups: StoreLookups): StorePr
     reviewCount: product.reviewCount,
     stock: product.stock,
     category: categorySlug,
+    categoryId: product.categoryId,
     categorySlug,
     categoryName: category?.name ?? humanizeId(categorySlug),
     brandId: product.brandId,
     brandName: brand?.name ?? (product.brandId ? humanizeId(product.brandId) : ''),
+    brandLogo: brand?.logo ?? null,
+    brandLogoPublicId: brand?.logoPublicId ?? null,
     images: toStoreImages(product),
     thumbnail: product.thumbnail || product.gallery[0]?.url || '',
     badge: deriveBadge(product, createdAtMs),
@@ -166,6 +173,9 @@ export function toStoreCategory(category: Category): StoreCategory {
     name: category.name,
     description: category.description,
     accent: deriveAccent(category.id || category.slug),
+    image: category.image ?? null,
+    imagePublicId: category.imagePublicId ?? null,
+    featured: category.featured ?? false,
     count: category.productCount,
     sortOrder: category.sortOrder,
   };
@@ -180,7 +190,15 @@ export function toStoreCategories(categories: Category[]): StoreCategory[] {
 
 /** Map a Firestore brand into the storefront view model. */
 export function toStoreBrand(brand: Brand): StoreBrand {
-  return { id: brand.id, slug: brand.slug, name: brand.name };
+  return {
+    id: brand.id,
+    slug: brand.slug,
+    name: brand.name,
+    logo: brand.logo ?? null,
+    logoPublicId: brand.logoPublicId ?? null,
+    featured: brand.featured ?? false,
+    sortOrder: brand.sortOrder ?? 0,
+  };
 }
 
 /** Map + sort brands alphabetically for the products-page filter. */

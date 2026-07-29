@@ -10,11 +10,16 @@ const categoryBaseSchema = z.object({
   name: nonEmptyString.max(120),
   description: z.string().max(1000).default(''),
   image: z.url().nullable().default(null),
+  imagePublicId: z.string().nullable().default(null),
   /** Reference → categories.id for nesting; null for top-level. */
   parentId: idSchema.nullable().default(null),
   productCount: z.number().int().nonnegative().default(0),
+  featured: z.boolean().default(false),
   sortOrder: z.number().int().nonnegative().default(0),
   active: z.boolean().default(true),
+  seoTitle: z.string().max(200).default(''),
+  seoDescription: z.string().max(400).default(''),
+  metaKeywords: z.array(z.string().trim()).default([]),
 });
 
 export const categoryCreateSchema = categoryBaseSchema;

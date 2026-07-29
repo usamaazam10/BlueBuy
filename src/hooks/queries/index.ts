@@ -7,6 +7,7 @@
  */
 export { queryKeys } from './keys';
 export { useProductsQuery } from './use-products';
+export { useProductCounts } from './use-product-counts';
 export { useCategoriesQuery, useStoreCategories } from './use-categories';
 export { useBrandsQuery, useStoreBrands } from './use-brands';
 export { useStoreProducts } from './use-store-products';

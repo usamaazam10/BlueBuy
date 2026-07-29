@@ -6,6 +6,7 @@ import { Check, ChevronRight, Truck, ShieldCheck } from 'lucide-react';
 import type { StoreProduct } from '@/types/store';
 import { useStoreProducts } from '@/hooks/queries';
 import { formatPrice } from '@/lib/format';
+import { optimizeImageUrl } from '@/services/cloudinary';
 import { Container } from '@/components/layout/container';
 import { Badge } from '@/components/ui/badge';
 import { Rating } from '@/components/product/rating';
@@ -87,7 +88,23 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
                   {product.categoryName}
                 </Link>
                 {product.brandName && (
-                  <span className="text-muted-foreground text-sm">· {product.brandName}</span>
+                  <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
+                    <span aria-hidden>·</span>
+                    {product.brandLogo && (
+                      // eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary src under static export
+                      <img
+                        src={
+                          product.brandLogoPublicId
+                            ? optimizeImageUrl(product.brandLogoPublicId, { height: 40 })
+                            : product.brandLogo
+                        }
+                        alt={product.brandName}
+                        className="h-4 w-auto max-w-16 object-contain"
+                        loading="lazy"
+                      />
+                    )}
+                    {product.brandName}
+                  </span>
                 )}
                 {product.badge && (
                   <Badge variant={BADGE_VARIANT[product.badge]}>{product.badge}</Badge>

@@ -17,6 +17,8 @@ import type { ProductBadge, ProductSpec } from '@/types/product';
 export interface StoreImage {
   url: string;
   alt: string;
+  /** Cloudinary publicId for optimized/responsive delivery; undefined for legacy/thumbnail-only. */
+  publicId?: string;
 }
 
 /** A product as the storefront consumes it. */
@@ -37,10 +39,15 @@ export interface StoreProduct {
   stock: number;
   /** Category display slug (used for the `?category=` filter + card label). */
   category: string;
+  categoryId: string;
   categorySlug: string;
   categoryName: string;
   brandId: string;
   brandName: string;
+  /** Brand logo URL (resolved from the brand doc), or null. */
+  brandLogo: string | null;
+  /** Brand logo Cloudinary publicId for optimized delivery, or null. */
+  brandLogoPublicId: string | null;
   /** Ready-to-render gallery images; empty when the product has no media yet. */
   images: StoreImage[];
   /** Primary image URL, or empty string when there is no media. */
@@ -66,7 +73,13 @@ export interface StoreCategory {
   name: string;
   description: string;
   accent: string;
-  /** Denormalised product count from Firestore. */
+  /** Cloudinary image URL, or null to fall back to the geometric accent tile. */
+  image: string | null;
+  /** Cloudinary publicId for building optimized/responsive URLs; null when none. */
+  imagePublicId: string | null;
+  /** Whether the category is promoted. */
+  featured: boolean;
+  /** Denormalised product count from Firestore (a hint; UI shows live counts). */
   count: number;
   sortOrder: number;
 }
@@ -76,4 +89,11 @@ export interface StoreBrand {
   id: string;
   slug: string;
   name: string;
+  /** Cloudinary logo URL, or null to fall back to a text/geometric mark. */
+  logo: string | null;
+  /** Cloudinary publicId for building optimized/responsive URLs; null when none. */
+  logoPublicId: string | null;
+  /** Whether the brand is promoted. */
+  featured: boolean;
+  sortOrder: number;
 }

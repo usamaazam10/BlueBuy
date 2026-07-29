@@ -7,5 +7,6 @@ export { ConfirmDialog } from './confirm-dialog';
 export { DataTable, type Column, type SortState, type SortDirection } from './data-table';
 export { Pagination } from './pagination';
 export { ImageUploader, MAX_IMAGES, type GalleryImage } from './image-uploader';
+export { SingleImageUpload } from './single-image-upload';
 export { RichTextEditor } from './rich-text-editor';
 export { PageHeader } from './page-header';

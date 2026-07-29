@@ -41,10 +41,22 @@ export interface CmsLink {
 export interface SiteSettings {
   storeName: string;
   tagline: string;
-  /** Logo image URL; empty string renders the built-in wordmark. */
+  /** Primary logo image URL; empty renders the built-in wordmark. Used everywhere unless a surface-specific logo below overrides it. */
   logoUrl: string;
-  /** Favicon URL; empty string keeps the app default. */
+  /** Favicon URL; empty falls back to the built-in brand mark. */
   faviconUrl: string;
+  /** Apple touch icon URL (iOS home-screen); empty falls back to the brand mark. */
+  appleTouchIconUrl: string;
+  /** Social share (Open Graph) image URL; empty falls back to the brand mark. */
+  ogImageUrl: string;
+  /** PWA manifest icon URL; empty falls back to the brand mark. */
+  manifestIconUrl: string;
+  /** Header-specific logo override; empty uses `logoUrl` then the wordmark. */
+  headerLogoUrl: string;
+  /** Footer-specific logo override; empty uses `logoUrl` then the wordmark. */
+  footerLogoUrl: string;
+  /** Email logo (future-ready — used by transactional emails); empty uses `logoUrl`. */
+  emailLogoUrl: string;
   /** Brand/primary colour (hex). Injected as the `--brand` CSS variable. */
   primaryColor: string;
   /** Secondary/accent colour (hex). Injected as `--brand-accent`. */
@@ -63,6 +75,12 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   tagline: 'A modern, production-ready ecommerce experience.',
   logoUrl: '',
   faviconUrl: '',
+  appleTouchIconUrl: '',
+  ogImageUrl: '',
+  manifestIconUrl: '',
+  headerLogoUrl: '',
+  footerLogoUrl: '',
+  emailLogoUrl: '',
   primaryColor: '',
   secondaryColor: '',
   supportEmail: 'support@bluebuy.com',

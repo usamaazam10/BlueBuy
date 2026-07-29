@@ -10,3 +10,4 @@ export * from './review.schema';
 export * from './cart.schema';
 export * from './order.schema';
 export * from './cms.schema';
+export * from './orphaned-asset.schema';

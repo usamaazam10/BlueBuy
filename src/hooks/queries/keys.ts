@@ -6,6 +6,7 @@
  */
 export const queryKeys = {
   products: ['products'] as const,
+  allProducts: ['products', 'all'] as const,
   categories: ['categories'] as const,
   brands: ['brands'] as const,
   product: (slug: string) => ['product', slug] as const,

@@ -10,8 +10,14 @@ const brandBaseSchema = z.object({
   name: nonEmptyString.max(120),
   description: z.string().max(1000).default(''),
   logo: z.url().nullable().default(null),
+  logoPublicId: z.string().nullable().default(null),
   website: z.url().nullable().default(null),
+  featured: z.boolean().default(false),
+  sortOrder: z.number().int().nonnegative().default(0),
   active: z.boolean().default(true),
+  seoTitle: z.string().max(200).default(''),
+  seoDescription: z.string().max(400).default(''),
+  metaKeywords: z.array(z.string().trim()).default([]),
 });
 
 export const brandCreateSchema = brandBaseSchema;
