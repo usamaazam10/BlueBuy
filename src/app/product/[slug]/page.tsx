@@ -10,20 +10,39 @@ interface ProductPageProps {
 }
 
 /**
+ * Any unknown slug (not produced by generateStaticParams) resolves to the 404
+ * page. There is no server at runtime, so this is the only correct behaviour
+ * for a static export — it also makes the intent explicit.
+ */
+export const dynamicParams = false;
+
+/**
+ * A single unreachable sentinel slug. `output: export` refuses a dynamic route
+ * that yields ZERO static params, so when the catalog is empty or Firestore is
+ * unreachable at build time we must still emit at least one param or the whole
+ * deploy fails. This slug can never match a real product (it renders the 404),
+ * so it is invisible in production and only ever emitted in the degraded case.
+ */
+const NO_PRODUCTS_SENTINEL = '__no-products__';
+
+/**
  * Pre-render every active product page at build time (static export).
  *
  * Reads slugs from Firestore at build. Wrapped in try/catch so an unreachable
  * or unconfigured Firestore degrades to "no product pages" instead of failing
  * the whole build; when that happens the storefront still builds and product
- * links simply 404 until the next successful build.
+ * links simply 404 until the next successful build. Because `output: export`
+ * rejects an empty param set, an empty/unreachable catalog falls back to a
+ * single unreachable sentinel so the build stays green either way.
  */
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
   try {
     const products = await ProductRepository.listActive();
-    return products.map((product) => ({ slug: product.slug }));
+    const params = products.map((product) => ({ slug: product.slug }));
+    return params.length > 0 ? params : [{ slug: NO_PRODUCTS_SENTINEL }];
   } catch (error) {
     console.warn('[product] generateStaticParams: could not read Firestore —', error);
-    return [];
+    return [{ slug: NO_PRODUCTS_SENTINEL }];
   }
 }
 

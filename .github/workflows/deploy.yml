@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Configure Pages
@@ -60,6 +60,11 @@ jobs:
           NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
           NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
           NEXT_PUBLIC_STORE_WHATSAPP: ${{ secrets.NEXT_PUBLIC_STORE_WHATSAPP }}
+          # Optional — App Check (reCAPTCHA v3). Leave the secret unset to ship
+          # with App Check disabled (the code no-ops on an empty value). Set it
+          # once you register the site in Firebase console → App Check and are
+          # ready to attach attestation tokens. See AUTHENTICATION.md.
+          NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ secrets.NEXT_PUBLIC_RECAPTCHA_SITE_KEY }}
         run: npm run build
 
       - name: Upload artifact
