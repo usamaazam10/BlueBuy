@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Search, ArrowRight } from 'lucide-react';
 import type { StoreProduct } from '@/types/store';
 import { useStoreProducts } from '@/hooks/queries';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { Modal } from '@/components/ui/modal';
 import { ProductImage } from '@/components/product/product-image';
 
@@ -33,6 +33,7 @@ export function SearchBar({ open, onClose }: SearchBarProps) {
   const [query, setQuery] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { data: products, isLoading } = useStoreProducts();
+  const { formatPrice } = useCurrency();
   const results = React.useMemo(() => filterProducts(products, query), [products, query]);
 
   React.useEffect(() => {

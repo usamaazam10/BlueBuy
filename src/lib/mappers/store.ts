@@ -8,6 +8,7 @@
  * Keeping the conversion here means repositories stay UI-agnostic and the
  * product components stay declarative (they receive exactly what they render).
  */
+import { DEFAULT_CURRENCY } from '@/lib/format';
 import type { Brand, Category, FirestoreDate, Product, ProductImage } from '@/types/models';
 import type { ProductBadge } from '@/types/product';
 import type { StoreBrand, StoreCategory, StoreImage, StoreProduct } from '@/types/store';
@@ -101,13 +102,24 @@ function toStoreImages(product: Product): StoreImage[] {
 export interface StoreLookups {
   categoryById: Map<string, Category>;
   brandById: Map<string, Brand>;
+  /**
+   * The store's display currency (`site_settings.currency`). It wins over the
+   * code stored on a product document: the catalogue is priced in one currency,
+   * set once in the admin, rather than per product.
+   */
+  currency?: string;
 }
 
 /** Build the id → doc lookup maps a batch of `toStoreProduct` calls needs. */
-export function buildLookups(categories: Category[], brands: Brand[]): StoreLookups {
+export function buildLookups(
+  categories: Category[],
+  brands: Brand[],
+  currency?: string
+): StoreLookups {
   return {
     categoryById: new Map(categories.map((category) => [category.id, category])),
     brandById: new Map(brands.map((brand) => [brand.id, brand])),
+    currency,
   };
 }
 
@@ -127,7 +139,7 @@ export function toStoreProduct(product: Product, lookups: StoreLookups): StorePr
     shortDescription: product.shortDescription,
     price: onSale ? (product.salePrice as number) : product.price,
     compareAtPrice: onSale ? product.price : undefined,
-    currency: product.currency || 'USD',
+    currency: lookups.currency || product.currency || DEFAULT_CURRENCY,
     rating: product.rating,
     reviewCount: product.reviewCount,
     stock: product.stock,
@@ -157,9 +169,10 @@ export function toStoreProduct(product: Product, lookups: StoreLookups): StorePr
 export function toStoreProducts(
   products: Product[],
   categories: Category[],
-  brands: Brand[]
+  brands: Brand[],
+  currency?: string
 ): StoreProduct[] {
-  const lookups = buildLookups(categories, brands);
+  const lookups = buildLookups(categories, brands, currency);
   return products
     .map((product) => toStoreProduct(product, lookups))
     .sort((a, b) => b.createdAtMs - a.createdAtMs);

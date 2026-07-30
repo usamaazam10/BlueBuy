@@ -12,7 +12,7 @@ import { useOrdersQuery, useUpdateOrderStatus } from '@/hooks/queries';
 import { ORDER_STATUSES, type Order, type OrderStatus } from '@/types/order';
 import { orderStatusLabel } from '@/lib/order/status';
 import { toAppError } from '@/firebase';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import type { FirestoreDate } from '@/types/models';
 import { OrderStatusBadge } from './order-status-badge';
 import { OrderDetail } from './order-detail';
@@ -84,6 +84,7 @@ export function OrdersBrowser() {
   const toast = useToast();
   const { data: orders, isLoading, isError, error, refetch } = useOrdersQuery();
   const updateStatus = useUpdateOrderStatus();
+  const { formatPrice } = useCurrency();
 
   const [search, setSearch] = React.useState('');
   const [status, setStatus] = React.useState<'all' | OrderStatus>('all');
@@ -187,7 +188,9 @@ export function OrdersBrowser() {
       sortable: true,
       align: 'right',
       cell: (o) => (
-        <span className="text-foreground font-medium tabular-nums">{formatPrice(o.total)}</span>
+        <span className="text-foreground font-medium tabular-nums">
+          {formatPrice(o.total, o.currency)}
+        </span>
       ),
     },
     {

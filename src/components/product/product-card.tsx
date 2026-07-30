@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { StoreProduct } from '@/types/store';
 import { cn } from '@/lib/utils';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { Badge } from '@/components/ui/badge';
 import { Rating } from './rating';
 import { ProductImage } from './product-image';
@@ -25,6 +25,7 @@ interface ProductCardProps {
 
 function ProductCardImpl({ product, className }: ProductCardProps) {
   const reduceMotion = useReducedMotion();
+  const { formatPrice } = useCurrency();
   const href = `/product/${product.slug}`;
   const outOfStock = product.stock <= 0;
 

@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import { toStoreProducts } from '@/lib/mappers/store';
 import type { StoreProduct } from '@/types/store';
+import { useSiteSettings } from './use-cms';
 import { useProductsQuery } from './use-products';
 import { useCategoriesQuery } from './use-categories';
 import { useBrandsQuery } from './use-brands';
@@ -20,11 +21,20 @@ export function useStoreProducts() {
   const productsQuery = useProductsQuery();
   const categoriesQuery = useCategoriesQuery();
   const brandsQuery = useBrandsQuery();
+  // The catalogue is priced in the store's configured currency, so a change in
+  // admin → CMS → Site settings re-maps every product on the next render.
+  const { data: settings } = useSiteSettings();
+  const currency = settings?.currency;
 
   const data = useMemo<StoreProduct[]>(() => {
     if (!productsQuery.data) return [];
-    return toStoreProducts(productsQuery.data, categoriesQuery.data ?? [], brandsQuery.data ?? []);
-  }, [productsQuery.data, categoriesQuery.data, brandsQuery.data]);
+    return toStoreProducts(
+      productsQuery.data,
+      categoriesQuery.data ?? [],
+      brandsQuery.data ?? [],
+      currency
+    );
+  }, [productsQuery.data, categoriesQuery.data, brandsQuery.data, currency]);
 
   const refetch = useCallback(() => {
     void productsQuery.refetch();

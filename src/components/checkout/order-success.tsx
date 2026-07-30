@@ -6,7 +6,7 @@ import { ArrowRight, CheckCircle2, Clock, MessageCircle } from 'lucide-react';
 import type { Order } from '@/types/order';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { ESTIMATED_PROCESSING, buildWhatsAppUrl } from '@/lib/order';
 
 /**
@@ -18,6 +18,8 @@ import { ESTIMATED_PROCESSING, buildWhatsAppUrl } from '@/lib/order';
  */
 export function OrderSuccess({ order }: { order: Order }) {
   const whatsAppUrl = buildWhatsAppUrl(order);
+  const { formatPrice } = useCurrency();
+  const money = (value: number) => formatPrice(value, order.currency);
 
   return (
     <Container className="py-12 sm:py-16">
@@ -70,14 +72,14 @@ export function OrderSuccess({ order }: { order: Order }) {
                   {item.title}
                   <span className="text-muted-foreground"> × {item.quantity}</span>
                 </span>
-                <span className="tabular-nums">{formatPrice(item.lineTotal)}</span>
+                <span className="tabular-nums">{money(item.lineTotal)}</span>
               </li>
             ))}
           </ul>
 
           <div className="border-border mt-2 flex items-center justify-between border-t pt-3">
             <span className="font-semibold">Total</span>
-            <span className="text-base font-semibold tabular-nums">{formatPrice(order.total)}</span>
+            <span className="text-base font-semibold tabular-nums">{money(order.total)}</span>
           </div>
         </div>
 

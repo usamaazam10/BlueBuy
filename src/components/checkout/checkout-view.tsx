@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { usePlaceOrder } from '@/hooks/queries';
+import { useCurrency } from '@/hooks/use-currency';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
@@ -79,6 +80,7 @@ function Field({
 export function CheckoutView() {
   const { items, isEmpty, hydrated, clear } = useCart();
   const placeOrder = usePlaceOrder();
+  const { currency, formatPrice } = useCurrency();
 
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = React.useState<FieldErrors>({});
@@ -111,7 +113,9 @@ export function CheckoutView() {
     setErrors({});
 
     try {
-      const order = await placeOrder.mutateAsync({ customer: parsed.data, items });
+      // Stamp the store's current currency so the order is a faithful record of
+      // what the customer was quoted, even if the setting changes later.
+      const order = await placeOrder.mutateAsync({ customer: parsed.data, items, currency });
       clear();
       setPlacedOrder(order);
       // Scroll to top so the success screen is in view.
@@ -268,10 +272,7 @@ export function CheckoutView() {
                       <span className="text-muted-foreground"> × {item.quantity}</span>
                     </span>
                     <span className="tabular-nums">
-                      {(item.unitPrice * item.quantity).toLocaleString('en-US', {
-                        style: 'currency',
-                        currency: item.currency,
-                      })}
+                      {formatPrice(item.unitPrice * item.quantity)}
                     </span>
                   </li>
                 ))}

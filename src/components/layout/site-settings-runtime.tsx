@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useSiteSettings } from '@/hooks/queries';
 import { resolveLogos } from '@/lib/site-logo';
+import { setActiveCurrency } from '@/lib/format';
 
 /** Create or update a <link rel> in <head>, returning the element. */
 function upsertLink(rel: string, href: string) {
@@ -18,7 +19,8 @@ function upsertLink(rel: string, href: string) {
 /**
  * Applies global `site_settings` to the live document: the brand colour (as the
  * `--brand` CSS variable, which every `bg-brand`/`text-brand` token and the SVG
- * logo read from), a secondary accent (`--brand-accent`), and the favicon.
+ * logo read from), a secondary accent (`--brand-accent`), the favicon, and the
+ * store currency used by money formatting outside React (`@/lib/format`).
  *
  * Renders nothing. Mounted once near the root so a single settings change
  * re-themes the whole app without touching component code. Because the app is a
@@ -38,6 +40,12 @@ export function SiteSettingsRuntime() {
     if (settings.secondaryColor) root.style.setProperty('--brand-accent', settings.secondaryColor);
     else root.style.removeProperty('--brand-accent');
   }, [settings]);
+
+  // Currency: components read it through `useCurrency()`, but non-React callers
+  // (the order service, the WhatsApp message builder) read the module default.
+  React.useEffect(() => {
+    setActiveCurrency(settings?.currency);
+  }, [settings?.currency]);
 
   // Favicon + apple-touch icon: fall back to the built-in BlueBuy brand assets
   // so the real logo shows in the tab out of the box, overridable via CMS.

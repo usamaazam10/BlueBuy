@@ -1,7 +1,7 @@
 'use client';
 
 import type { CartTotals } from '@/types/cart';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { cn } from '@/lib/utils';
 
 interface CartSummaryProps {
@@ -40,6 +40,7 @@ function Row({ label, value, muted, emphasis }: RowProps) {
  * configured cart. Reused by the drawer footer and the cart page.
  */
 export function CartSummary({ totals, children, className }: CartSummaryProps) {
+  const { formatPrice } = useCurrency();
   const showShipping = totals.shippingLabel !== null;
   const showTax = totals.taxLabel !== null;
 

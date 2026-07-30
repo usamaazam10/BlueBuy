@@ -19,6 +19,7 @@ import type { CreateOrderInput, Order, OrderItem, OrderStatus } from '@/types/or
 import type { CheckoutCustomerInput } from '@/lib/validations';
 import { OrderRepository } from '@/repositories';
 import { calculateTotals, lineSubtotal } from '@/lib/cart/pricing';
+import { getActiveCurrency } from '@/lib/format';
 import { CHECKOUT_PRICING_CONFIG, buildWhatsAppUrl } from '@/lib/order';
 import { checkoutCustomerSchema } from '@/lib/validations';
 
@@ -26,6 +27,11 @@ import { checkoutCustomerSchema } from '@/lib/validations';
 export interface PlaceOrderArgs {
   customer: CheckoutCustomerInput;
   items: CartItem[];
+  /**
+   * ISO 4217 code to record the order in. Defaults to the store's configured
+   * currency (`site_settings`) — the same one checkout displayed prices in.
+   */
+  currency?: string;
 }
 
 /**
@@ -57,7 +63,11 @@ function toOrderItem(item: CartItem): OrderItem {
 }
 
 /** Build the validated create payload from cart lines + priced totals. */
-function buildCreateInput(customer: CheckoutCustomerInput, items: CartItem[]): CreateOrderInput {
+function buildCreateInput(
+  customer: CheckoutCustomerInput,
+  items: CartItem[],
+  currency: string
+): CreateOrderInput {
   const totals = calculateTotals(items, CHECKOUT_PRICING_CONFIG);
   return {
     customer,
@@ -66,7 +76,7 @@ function buildCreateInput(customer: CheckoutCustomerInput, items: CartItem[]): C
     shipping: totals.shipping,
     discount: totals.discount,
     total: totals.total,
-    currency: totals.currency,
+    currency,
   };
 }
 
@@ -77,13 +87,13 @@ export const orderService = {
    * the stored {@link Order}; rejects with an `AppError` on insufficient stock
    * or invalid input.
    */
-  async placeOrder({ customer, items }: PlaceOrderArgs): Promise<Order> {
+  async placeOrder({ customer, items, currency }: PlaceOrderArgs): Promise<Order> {
     if (items.length === 0) {
       // Guard the obvious case with a friendly message before hitting Firestore.
       throw new Error('Your cart is empty.');
     }
     const parsedCustomer = checkoutCustomerSchema.parse(customer);
-    const input = buildCreateInput(parsedCustomer, items);
+    const input = buildCreateInput(parsedCustomer, items, currency ?? getActiveCurrency());
     const orderId = generateOrderId();
     return OrderRepository.create(orderId, input);
   },

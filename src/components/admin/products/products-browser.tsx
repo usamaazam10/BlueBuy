@@ -18,7 +18,7 @@ import { deleteProductWithImageCleanup } from '@/services/image-cleanup.service'
 import { useCategoriesQuery, useBrandsQuery } from '@/hooks/queries';
 import { LOW_STOCK_THRESHOLD } from '@/data/admin/products';
 import { humanizeId } from '@/lib/mappers/store';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import type { FirestoreDate, Product } from '@/types/models';
 import type { ProductStatus } from '@/data/admin/types';
 
@@ -103,6 +103,7 @@ export function ProductsBrowser() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
+  const { formatPrice } = useCurrency();
 
   // Live taxonomy for display + filtering (same Firestore source as the storefront).
   const { data: categoriesData } = useCategoriesQuery();

@@ -152,7 +152,11 @@ export function SiteSettingsForm() {
 
           <SectionCard title="Regional" description="Currency and timezone defaults.">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Currency" htmlFor="currency" hint="3-letter ISO code, e.g. USD.">
+              <Field
+                label="Currency"
+                htmlFor="currency"
+                hint="3-letter ISO code, e.g. USD. Applies to every price across the store."
+              >
                 <Input
                   id="currency"
                   value={draft.currency}

@@ -69,7 +69,12 @@ by `sortOrder` to stay on Firestore's automatic single-field index).
   promotional banner (the CTA band), newsletter block, and SEO overrides.
 - **Site settings** → store name + logo (wordmark or image), favicon, primary /
   secondary colour (injected as the `--brand` / `--brand-accent` CSS variables
-  site-wide), support email/phone, address, currency, timezone.
+  site-wide), support email/phone, address, currency, timezone. The currency is
+  the ISO code every price on the site is formatted in — components read it via
+  `useCurrency()` ([`src/hooks/use-currency.ts`](src/hooks/use-currency.ts)), and
+  `SiteSettingsRuntime` mirrors it into [`src/lib/format.ts`](src/lib/format.ts)
+  for the few non-React callers. Placed orders keep the currency they were
+  bought in, so past orders never re-price.
 - **Footer** → tagline, link columns (Company / Support / Legal — fully editable),
   copyright (`{year}` is substituted at render).
 - **Contact** → the contact page heading + methods, also reusable in the footer.

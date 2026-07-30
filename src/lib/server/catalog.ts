@@ -10,9 +10,15 @@
  * The client renders the same data live via `useStoreProducts` — this is the
  * server-side twin used only during prerendering.
  */
-import { ProductRepository, CategoryRepository, BrandRepository } from '@/repositories';
+import {
+  ProductRepository,
+  CategoryRepository,
+  BrandRepository,
+  SiteSettingsRepository,
+} from '@/repositories';
 import { toStoreProducts } from '@/lib/mappers/store';
 import type { StoreProduct } from '@/types/store';
+import type { SiteSettings } from '@/types/cms';
 
 let catalogPromise: Promise<StoreProduct[]> | null = null;
 
@@ -27,14 +33,26 @@ async function safeList<T>(fn: () => Promise<T[]>, label: string): Promise<T[]> 
   }
 }
 
+/** Best-effort site settings read — prerendering must not fail without them. */
+async function safeSettings(): Promise<SiteSettings | null> {
+  try {
+    return await SiteSettingsRepository.get();
+  } catch (error) {
+    console.warn('[catalog] optional read "site settings" failed — using defaults:', error);
+    return null;
+  }
+}
+
 async function loadCatalog(): Promise<StoreProduct[]> {
-  // Products are required; categories/brands only enrich display names.
-  const [products, categories, brands] = await Promise.all([
+  // Products are required; categories/brands only enrich display names, and
+  // site settings only supply the display currency for prerendered prices/JSON-LD.
+  const [products, categories, brands, settings] = await Promise.all([
     ProductRepository.listActive(),
     safeList(() => CategoryRepository.listActive(), 'categories'),
     safeList(() => BrandRepository.listActive(), 'brands'),
+    safeSettings(),
   ]);
-  return toStoreProducts(products, categories, brands);
+  return toStoreProducts(products, categories, brands, settings?.currency);
 }
 
 /** All active products, mapped + memoised for the duration of the build. */

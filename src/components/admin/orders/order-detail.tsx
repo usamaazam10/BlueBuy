@@ -5,7 +5,7 @@ import { Loader2, MapPin, Phone, Mail, StickyNote, User } from 'lucide-react';
 import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { cn } from '@/lib/utils';
 import type { FirestoreDate } from '@/types/models';
 import type { Order, OrderStatus } from '@/types/order';
@@ -77,6 +77,10 @@ function InfoRow({
  */
 export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: OrderDetailProps) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const { formatPrice } = useCurrency();
+  // Orders render in the currency they were placed with, not the store's
+  // current one, so a past order never silently changes value.
+  const money = (value: number) => formatPrice(value, order?.currency);
 
   if (!order) {
     return (
@@ -155,12 +159,10 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground truncate text-sm font-medium">{item.title}</p>
                     <p className="text-muted-foreground text-xs">
-                      {formatPrice(item.unitPrice)} × {item.quantity}
+                      {money(item.unitPrice)} × {item.quantity}
                     </p>
                   </div>
-                  <span className="text-sm font-medium tabular-nums">
-                    {formatPrice(item.lineTotal)}
-                  </span>
+                  <span className="text-sm font-medium tabular-nums">{money(item.lineTotal)}</span>
                 </li>
               ))}
             </ul>
@@ -170,23 +172,23 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
           <section className="border-border space-y-2 border-t pt-4 text-sm">
             <div className="text-muted-foreground flex justify-between">
               <span>Subtotal</span>
-              <span className="tabular-nums">{formatPrice(order.subtotal)}</span>
+              <span className="tabular-nums">{money(order.subtotal)}</span>
             </div>
             {order.discount > 0 && (
               <div className="text-muted-foreground flex justify-between">
                 <span>Discount</span>
-                <span className="tabular-nums">−{formatPrice(order.discount)}</span>
+                <span className="tabular-nums">−{money(order.discount)}</span>
               </div>
             )}
             <div className="text-muted-foreground flex justify-between">
               <span>Shipping</span>
               <span className="tabular-nums">
-                {order.shipping === 0 ? 'Free' : formatPrice(order.shipping)}
+                {order.shipping === 0 ? 'Free' : money(order.shipping)}
               </span>
             </div>
             <div className="text-foreground flex justify-between text-base font-semibold">
               <span>Total</span>
-              <span className="tabular-nums">{formatPrice(order.total)}</span>
+              <span className="tabular-nums">{money(order.total)}</span>
             </div>
           </section>
         </div>

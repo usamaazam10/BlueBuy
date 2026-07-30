@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import type { CartItem } from '@/types/cart';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { lineSubtotal } from '@/lib/cart/pricing';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/cart-context';
@@ -27,6 +27,7 @@ interface CartLineItemProps {
  */
 export function CartLineItem({ item, variant = 'compact', onNavigate }: CartLineItemProps) {
   const { updateQuantity, removeItem } = useCart();
+  const { formatPrice } = useCurrency();
   const reduceMotion = useReducedMotion();
   const isFull = variant === 'full';
 

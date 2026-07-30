@@ -16,7 +16,10 @@ import type { Order } from '@/types/order';
 /** Build the plain-text WhatsApp message body for an order. */
 export function buildWhatsAppMessage(order: Order): string {
   const lines = order.items
-    .map((item) => `• ${item.title} × ${item.quantity} — ${formatPrice(item.lineTotal)}`)
+    .map(
+      (item) =>
+        `• ${item.title} × ${item.quantity} — ${formatPrice(item.lineTotal, order.currency)}`
+    )
     .join('\n');
 
   return [
@@ -29,7 +32,7 @@ export function buildWhatsAppMessage(order: Order): string {
     `Items:`,
     lines,
     ``,
-    `Total: ${formatPrice(order.total)}`,
+    `Total: ${formatPrice(order.total, order.currency)}`,
   ].join('\n');
 }
 

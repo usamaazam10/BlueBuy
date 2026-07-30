@@ -29,7 +29,7 @@ import {
   useOrdersQuery,
 } from '@/hooks/queries';
 import { LOW_STOCK_THRESHOLD } from '@/data/admin/products';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import type { FirestoreDate, Product } from '@/types/models';
 
 /** Coerce a Firestore timestamp (Timestamp | Date | null) to sortable millis. */
@@ -52,6 +52,7 @@ function toMillis(date: FirestoreDate): number {
  * made-up delta on a real store is misleading.
  */
 export default function DashboardPage() {
+  const { formatPrice } = useCurrency();
   const products = useProductsQuery();
   const categories = useCategoriesQuery();
   const brands = useBrandsQuery();
@@ -233,7 +234,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className="text-foreground text-sm font-medium tabular-nums">
-                        {formatPrice(order.total)}
+                        {formatPrice(order.total, order.currency)}
                       </span>
                       <OrderStatusBadge status={order.status} />
                     </div>

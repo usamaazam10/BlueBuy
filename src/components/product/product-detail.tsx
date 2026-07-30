@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Check, ChevronRight, Truck, ShieldCheck } from 'lucide-react';
 import type { StoreProduct } from '@/types/store';
 import { useStoreProducts } from '@/hooks/queries';
-import { formatPrice } from '@/lib/format';
+import { useCurrency } from '@/hooks/use-currency';
 import { optimizeImageUrl } from '@/services/cloudinary';
 import { Container } from '@/components/layout/container';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +36,7 @@ interface ProductDetailProps {
  */
 export function ProductDetail({ slug, initialProduct, initialRelated }: ProductDetailProps) {
   const { data } = useStoreProducts();
+  const { formatPrice } = useCurrency();
 
   const product = React.useMemo(
     () => data.find((p) => p.slug === slug) ?? initialProduct,

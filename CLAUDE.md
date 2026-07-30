@@ -43,7 +43,7 @@ Storefront primitives (`src/components/ui/`) are **pill-shaped** (`rounded-full`
 
 - `cn()` from [`src/lib/utils.ts`](src/lib/utils.ts) for all conditional classes (clsx + tailwind-merge).
 - Variants via `class-variance-authority` (`cva`) — see [`button.tsx`](src/components/ui/button.tsx).
-- Icons: `lucide-react`. Animation: `framer-motion`. Currency/number: `formatPrice`/`formatCompact` in [`src/lib/format.ts`](src/lib/format.ts).
+- Icons: `lucide-react`. Animation: `framer-motion`. Numbers: `formatCompact` in [`src/lib/format.ts`](src/lib/format.ts). **Money in components goes through `useCurrency()`** ([`src/hooks/use-currency.ts`](src/hooks/use-currency.ts)) so prices follow the store currency in CMS → Site settings; import `formatPrice` directly only outside React (pass the record's own code for orders).
 - `Modal` and `Drawer` ([`src/components/ui/`](src/components/ui/)) are portal-based, accessible (focus trap, scroll lock, Esc). Reuse them — don't hand-roll dialogs.
 - Match surrounding code: JSDoc on exported components, `forwardRef` + `displayName` for primitives, `'use client'` only where hooks/interactivity are needed.
 - Every icon-only button needs an `aria-label`. Keep the a11y tree clean.
