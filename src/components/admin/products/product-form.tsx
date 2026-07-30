@@ -138,12 +138,22 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
 
   const thumbnail = values.images[0];
 
+  // Mirrors what saving will actually do, so the button can't imply a state the
+  // "Active" switch contradicts.
+  const saveLabel = mode === 'edit' ? 'Save changes' : values.active ? 'Publish' : 'Save draft';
+
   /**
-   * Publish/save flow: validate → upload pending images to Cloudinary (with
-   * progress) → persist the product via the repository → toast + redirect.
+   * Save flow: validate → upload pending images to Cloudinary (with progress) →
+   * persist the product via the repository → toast + redirect.
+   *
+   * The "Active" switch is the single source of truth for storefront
+   * visibility. This used to take a `'draft' | 'publish'` intent from the two
+   * action-bar buttons and overwrite `values.active` with it, which silently
+   * discarded the switch — turning a product off and saving just turned it back
+   * on. The switch now drives both the saved value and the button's label.
    */
-  async function handleSubmit(intent: 'draft' | 'publish') {
-    const nextValues = { ...values, active: intent === 'publish' };
+  async function handleSubmit() {
+    const nextValues = values;
 
     // 1) Fail fast on client-side field errors.
     const fieldErrors = validateProductForm(nextValues);
@@ -226,8 +236,10 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
       }
 
       toast.success(
-        intent === 'publish' ? 'Product published' : 'Draft saved',
-        `“${nextValues.title}” was saved successfully.`
+        mode === 'edit' ? 'Product saved' : nextValues.active ? 'Product published' : 'Draft saved',
+        nextValues.active
+          ? `“${nextValues.title}” is live in the storefront.`
+          : `“${nextValues.title}” was saved as a draft and is hidden from the storefront.`
       );
       router.push('/admin/products');
       router.refresh();
@@ -264,26 +276,19 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
           <Button asChild variant="ghost" size="sm" className="rounded-lg" disabled={submitting}>
             <Link href="/admin/products">Cancel</Link>
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg"
-            onClick={() => handleSubmit('draft')}
-            disabled={submitting}
-          >
-            Save draft
-          </Button>
+          {/* One save action — the "Active" switch decides whether the product
+              goes live, so a separate "Save draft" button would be a second,
+              conflicting source of truth for the same field. */}
           <Button
             type="button"
             variant="brand"
             size="sm"
             className="rounded-lg"
-            onClick={() => handleSubmit('publish')}
+            onClick={() => handleSubmit()}
             disabled={submitting}
           >
             {submitting && <Loader2 className="size-4 animate-spin" />}
-            {submitting ? 'Publishing…' : 'Publish'}
+            {submitting ? 'Saving…' : saveLabel}
           </Button>
         </div>
       </div>
@@ -662,24 +667,14 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
         </Button>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          className="rounded-lg"
-          onClick={() => handleSubmit('draft')}
-          disabled={submitting}
-        >
-          Save draft
-        </Button>
-        <Button
-          type="button"
           variant="brand"
           size="sm"
           className="rounded-lg"
-          onClick={() => handleSubmit('publish')}
+          onClick={() => handleSubmit()}
           disabled={submitting}
         >
           {submitting && <Loader2 className="size-4 animate-spin" />}
-          {submitting ? 'Publishing…' : 'Publish'}
+          {submitting ? 'Saving…' : saveLabel}
         </Button>
       </div>
     </form>
