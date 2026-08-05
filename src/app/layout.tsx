@@ -5,6 +5,7 @@ import { QueryProvider } from '@/components/providers/query-provider';
 import { CartProvider } from '@/context/cart-context';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { SITE_CONFIG, BRAND_ASSETS } from '@/constants/site';
+import { getSiteSettings } from '@/lib/server/catalog';
 import { env } from '@/lib/env';
 import '@/styles/globals.css';
 
@@ -60,11 +61,15 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read once at build time (memoised across the whole export) and seeded into
+  // React Query below, so prerendered pages carry the store's real settings.
+  const siteSettings = await getSiteSettings();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -77,7 +82,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <QueryProvider>
+          <QueryProvider initialSiteSettings={siteSettings}>
             <CartProvider>
               <SiteChrome>{children}</SiteChrome>
             </CartProvider>

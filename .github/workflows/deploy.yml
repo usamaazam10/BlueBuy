@@ -68,11 +68,11 @@ jobs:
           NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
           NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
           NEXT_PUBLIC_STORE_WHATSAPP: ${{ secrets.NEXT_PUBLIC_STORE_WHATSAPP }}
-          # Build-time currency baked into prerendered prices. MUST match CMS →
-          # Site settings → Regional → Currency: the export renders prices to
-          # HTML before Firestore is read, so a mismatch ships the wrong currency
-          # in the visible markup (and contradicts the page's Product JSON-LD)
-          # until hydration corrects it. Unset falls back to USD.
+          # OPTIONAL. The build reads the store currency straight from
+          # `site_settings` in Firestore and bakes it into prerendered prices, so
+          # this normally needs no value. Set it only as a safety net for builds
+          # that cannot reach Firestore, in which case it must match CMS → Site
+          # settings → Regional → Currency. Unset falls back to USD.
           NEXT_PUBLIC_DEFAULT_CURRENCY: ${{ vars.DEFAULT_CURRENCY }}
           # Optional — App Check (reCAPTCHA v3). Leave the secret unset to ship
           # with App Check disabled (the code no-ops on an empty value). Set it

@@ -21,6 +21,7 @@ import type { StoreProduct } from '@/types/store';
 import type { SiteSettings } from '@/types/cms';
 
 let catalogPromise: Promise<StoreProduct[]> | null = null;
+let settingsPromise: Promise<SiteSettings | null> | null = null;
 
 /** Best-effort read: categories/brands may be locked down by security rules;
  *  when they are, we still render products (names fall back to a humanised id). */
@@ -43,6 +44,19 @@ async function safeSettings(): Promise<SiteSettings | null> {
   }
 }
 
+/**
+ * Site settings read once for the whole build.
+ *
+ * The root layout seeds these into the React Query cache, so every prerendered
+ * page renders with the store's real currency/branding instead of the built-in
+ * defaults — and the client hydrates against the same values. Returns `null`
+ * when Firestore is unreachable; callers fall back to defaults.
+ */
+export function getSiteSettings(): Promise<SiteSettings | null> {
+  if (!settingsPromise) settingsPromise = safeSettings();
+  return settingsPromise;
+}
+
 async function loadCatalog(): Promise<StoreProduct[]> {
   // Products are required; categories/brands only enrich display names, and
   // site settings only supply the display currency for prerendered prices/JSON-LD.
@@ -50,7 +64,7 @@ async function loadCatalog(): Promise<StoreProduct[]> {
     ProductRepository.listActive(),
     safeList(() => CategoryRepository.listActive(), 'categories'),
     safeList(() => BrandRepository.listActive(), 'brands'),
-    safeSettings(),
+    getSiteSettings(),
   ]);
   return toStoreProducts(products, categories, brands, settings?.currency);
 }

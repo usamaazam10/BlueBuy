@@ -13,6 +13,8 @@
  */
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { queryKeys } from '@/hooks/queries/keys';
+import type { SiteSettings } from '@/types/cms';
 
 /** Errors that will never succeed on retry (permissions, missing data, etc.). */
 const NON_RETRYABLE = new Set([
@@ -54,7 +56,27 @@ function makeQueryClient(): QueryClient {
   });
 }
 
-export function QueryProvider({ children }: { children: React.ReactNode }) {
-  const [queryClient] = React.useState(makeQueryClient);
+interface QueryProviderProps {
+  children: React.ReactNode;
+  /**
+   * `site_settings` read at build time by the root layout. Seeding these means
+   * prerendered HTML carries the store's real currency (and the client's first
+   * render matches it), instead of painting the built-in defaults and
+   * correcting after Firestore responds.
+   */
+  initialSiteSettings?: SiteSettings | null;
+}
+
+export function QueryProvider({ children, initialSiteSettings }: QueryProviderProps) {
+  const [queryClient] = React.useState(() => {
+    const client = makeQueryClient();
+    if (initialSiteSettings) {
+      // `updatedAt: 0` marks the build-time snapshot as already stale, so the
+      // browser refetches immediately on mount. The baked values only ever own
+      // the first paint — a CMS change still lands without a rebuild.
+      client.setQueryData(queryKeys.siteSettings, initialSiteSettings, { updatedAt: 0 });
+    }
+    return client;
+  });
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
