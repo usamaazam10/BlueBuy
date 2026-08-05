@@ -28,6 +28,7 @@
  * renders an identical site.
  * ─────────────────────────────────────────────────────────────────────────
  */
+import { DEFAULT_CURRENCY } from '@/lib/format';
 
 /** A call-to-action / navigation link (label + destination). */
 export interface CmsLink {
@@ -63,6 +64,18 @@ export interface SiteSettings {
   secondaryColor: string;
   supportEmail: string;
   supportPhone: string;
+  /**
+   * Store WhatsApp number in international format, digits only (no `+` or
+   * spaces), e.g. `15551234567`. Drives the floating support button and the
+   * post-order handoff. Empty hides the floating button entirely.
+   */
+  whatsappNumber: string;
+  /**
+   * Greeting pre-filled when a customer opens the floating WhatsApp chat from
+   * anywhere that isn't a product page. Product pages build their own message
+   * from the product's name — see `buildProductMessage` in `@/hooks/use-whatsapp`.
+   */
+  whatsappMessage: string;
   businessAddress: string;
   /** ISO 4217 currency code, e.g. "USD". */
   currency: string;
@@ -85,8 +98,15 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   secondaryColor: '',
   supportEmail: 'support@bluebuy.com',
   supportPhone: '+1 (555) 010-2040',
+  whatsappNumber: '',
+  whatsappMessage:
+    'As-salamu Alaikum! I found your website and would like to know more about your products.',
   businessAddress: '500 Market St, San Francisco',
-  currency: 'USD',
+  // Build-time currency, not a literal: this default is what every price renders
+  // with until Firestore responds (it is React Query's placeholder for
+  // `site_settings`), so hard-coding 'USD' here made prerendered HTML disagree
+  // with the store's real currency. See DEFAULT_CURRENCY in `@/lib/format`.
+  currency: DEFAULT_CURRENCY,
   timezone: 'America/Los_Angeles',
 };
 

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Check, ChevronRight, Truck, ShieldCheck } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { StoreProduct } from '@/types/store';
 import { useStoreProducts } from '@/hooks/queries';
 import { useCurrency } from '@/hooks/use-currency';
@@ -14,6 +14,7 @@ import { ProductGallery } from '@/components/product/product-gallery';
 import { ProductPurchase } from '@/components/product/product-purchase';
 import { ProductGrid } from '@/components/product/product-grid';
 import { SectionTitle } from '@/components/common/section-title';
+import { TrustSignals } from '@/components/common/trust-signals';
 
 const BADGE_VARIANT = {
   Sale: 'sale',
@@ -157,17 +158,11 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
               </ul>
             )}
 
-            {/* Reassurance */}
-            <div className="mt-2 grid grid-cols-2 gap-3">
-              <div className="border-border flex items-center gap-2.5 rounded-xl border p-3 text-sm">
-                <Truck className="text-muted-foreground size-5 shrink-0" />
-                Free 2-day shipping
-              </div>
-              <div className="border-border flex items-center gap-2.5 rounded-xl border p-3 text-sm">
-                <ShieldCheck className="text-muted-foreground size-5 shrink-0" />
-                2-year warranty
-              </div>
-            </div>
+            {/* Reassurance — canonical claims, shared with the cart & checkout */}
+            <TrustSignals
+              items={['shipping', 'returns', 'warranty', 'noPayment']}
+              className="mt-2"
+            />
           </div>
         </div>
 

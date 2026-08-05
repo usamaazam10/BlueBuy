@@ -24,8 +24,13 @@ export const env = {
 
   /**
    * Store WhatsApp number in international format, digits only (no `+`), e.g.
-   * `15551234567`. Used to build the post-order "Contact on WhatsApp" handoff.
-   * Falls back to a placeholder so the flow works before it's configured.
+   * `15551234567`.
+   *
+   * Deprecated as the primary source: the number now lives in the CMS
+   * (`site_settings.whatsappNumber`, read via `useWhatsApp()`). This remains
+   * only as a fallback for settings docs written before that field existed.
+   * Empty when unset — never a placeholder, so an unconfigured store hides its
+   * WhatsApp UI instead of linking to a number that doesn't exist.
    */
-  storeWhatsApp: (process.env.NEXT_PUBLIC_STORE_WHATSAPP ?? '15551234567').replace(/\D/g, ''),
+  storeWhatsApp: (process.env.NEXT_PUBLIC_STORE_WHATSAPP ?? '').replace(/\D/g, ''),
 } as const;

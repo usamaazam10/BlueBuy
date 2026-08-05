@@ -141,6 +141,31 @@ export function SiteSettingsForm() {
                 />
               </Field>
             </div>
+            <Field
+              label="WhatsApp number"
+              htmlFor="whatsapp-number"
+              hint="Full international number, e.g. +1 555 010 2040. Powers the floating chat button and the post-order handoff. Leave empty to hide the button."
+            >
+              <Input
+                id="whatsapp-number"
+                type="tel"
+                inputMode="tel"
+                placeholder="+1 555 010 2040"
+                value={draft.whatsappNumber}
+                onChange={(e) => patch({ whatsappNumber: e.target.value })}
+              />
+            </Field>
+            <Field
+              label="WhatsApp greeting"
+              htmlFor="whatsapp-message"
+              hint="Pre-filled in the customer's chat when they tap the floating button."
+            >
+              <Input
+                id="whatsapp-message"
+                value={draft.whatsappMessage}
+                onChange={(e) => patch({ whatsappMessage: e.target.value })}
+              />
+            </Field>
             <Field label="Business address" htmlFor="business-address">
               <Input
                 id="business-address"

@@ -6,6 +6,7 @@ import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
+import { TrustSignals } from '@/components/common/trust-signals';
 import { CartEmpty } from './cart-empty';
 import { CartLineItem } from './cart-line-item';
 import { CartSummary } from './cart-summary';
@@ -92,6 +93,11 @@ export function CartView() {
                 Shipping calculated at checkout.
               </p>
             </div>
+            <TrustSignals
+              variant="list"
+              items={['shipping', 'returns', 'noPayment']}
+              className="border-border mt-4 border-t pt-4"
+            />
           </CartSummary>
         </motion.aside>
       </div>

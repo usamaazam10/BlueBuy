@@ -7,6 +7,7 @@ import type { Order } from '@/types/order';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/hooks/use-currency';
+import { useWhatsApp } from '@/hooks/use-whatsapp';
 import { ESTIMATED_PROCESSING, buildWhatsAppUrl } from '@/lib/order';
 
 /**
@@ -17,7 +18,8 @@ import { ESTIMATED_PROCESSING, buildWhatsAppUrl } from '@/lib/order';
  * `@/lib/order/whatsapp`). No online payment is involved.
  */
 export function OrderSuccess({ order }: { order: Order }) {
-  const whatsAppUrl = buildWhatsAppUrl(order);
+  const { number: whatsAppNumber, enabled: whatsAppEnabled } = useWhatsApp();
+  const whatsAppUrl = buildWhatsAppUrl(order, whatsAppNumber);
   const { formatPrice } = useCurrency();
   const money = (value: number) => formatPrice(value, order.currency);
 
@@ -85,15 +87,17 @@ export function OrderSuccess({ order }: { order: Order }) {
 
         {/* Actions */}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Button
-            asChild
-            size="lg"
-            className="flex-1 bg-[#25D366] text-white hover:bg-[#1eb455] dark:text-white"
-          >
-            <a href={whatsAppUrl} target="_blank" rel="noopener noreferrer">
-              <MessageCircle className="size-4" /> Contact on WhatsApp
-            </a>
-          </Button>
+          {whatsAppEnabled && (
+            <Button
+              asChild
+              size="lg"
+              className="flex-1 bg-[#25D366] text-white hover:bg-[#1eb455] dark:text-white"
+            >
+              <a href={whatsAppUrl} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="size-4" /> Contact on WhatsApp
+              </a>
+            </Button>
+          )}
           <Button asChild variant="outline" size="lg" className="flex-1">
             <Link href="/products">
               Continue shopping <ArrowRight className="size-4" />

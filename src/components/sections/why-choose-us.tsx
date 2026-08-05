@@ -1,29 +1,17 @@
-import { Truck, ShieldCheck, RotateCcw, Headphones } from 'lucide-react';
 import { Container } from '@/components/layout/container';
 import { SectionTitle } from '@/components/common/section-title';
 import { Stagger, StaggerItem } from '@/components/common/motion';
+import { TRUST_SIGNALS } from '@/components/common/trust-signals';
 
+/**
+ * The homepage benefits grid, sourced from the canonical claims so it can never
+ * contradict the reassurance shown on the product page, cart or checkout.
+ */
 const FEATURES = [
-  {
-    icon: Truck,
-    title: 'Free, fast shipping',
-    description: 'Complimentary carbon-neutral delivery on every order, worldwide.',
-  },
-  {
-    icon: RotateCcw,
-    title: '30-day returns',
-    description: 'Changed your mind? Send it back within 30 days, no questions asked.',
-  },
-  {
-    icon: ShieldCheck,
-    title: '2-year warranty',
-    description: 'Every product is backed by our comprehensive, hassle-free warranty.',
-  },
-  {
-    icon: Headphones,
-    title: 'Human support',
-    description: 'Real people, ready to help you 7 days a week via chat or email.',
-  },
+  TRUST_SIGNALS.shipping,
+  TRUST_SIGNALS.returns,
+  TRUST_SIGNALS.warranty,
+  TRUST_SIGNALS.support,
 ];
 
 export function WhyChooseUs() {
@@ -38,14 +26,14 @@ export function WhyChooseUs() {
 
         <Stagger className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((feature) => (
-            <StaggerItem key={feature.title}>
+            <StaggerItem key={feature.id}>
               <div className="border-border hover:border-foreground/15 flex h-full flex-col gap-4 rounded-2xl border p-6 transition-colors">
                 <span className="bg-brand/10 text-brand flex size-12 items-center justify-center rounded-xl">
-                  <feature.icon className="size-6" />
+                  <feature.icon className="size-6" aria-hidden />
                 </span>
                 <div className="flex flex-col gap-1.5">
-                  <h3 className="font-semibold">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm text-pretty">{feature.description}</p>
+                  <h3 className="font-semibold">{feature.label}</h3>
+                  <p className="text-muted-foreground text-sm text-pretty">{feature.detail}</p>
                 </div>
               </div>
             </StaggerItem>

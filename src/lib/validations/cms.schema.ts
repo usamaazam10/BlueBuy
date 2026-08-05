@@ -49,6 +49,19 @@ export const siteSettingsSchema = z.object({
   secondaryColor: hexColorSchema,
   supportEmail: z.union([z.email(), z.literal('')]).default(''),
   supportPhone: z.string().trim().max(60).default(''),
+  /**
+   * Stored digits-only in international format. Editors may type `+`, spaces or
+   * dashes; we strip them so the value is always `wa.me`-ready.
+   */
+  whatsappNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\D/g, ''))
+    .refine((v) => v === '' || (v.length >= 8 && v.length <= 15), {
+      message: 'Enter a full international number, e.g. +1 555 010 2040',
+    })
+    .default(''),
+  whatsappMessage: z.string().trim().max(300).default(''),
   businessAddress: z.string().trim().max(300).default(''),
   currency: z
     .string()

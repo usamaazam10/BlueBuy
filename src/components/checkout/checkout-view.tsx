@@ -10,6 +10,7 @@ import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
 import { CartSummary } from '@/components/cart/cart-summary';
+import { TrustSignals } from '@/components/common/trust-signals';
 import { calculateTotals } from '@/lib/cart/pricing';
 import { CHECKOUT_PRICING_CONFIG } from '@/lib/order';
 import { checkoutCustomerSchema } from '@/lib/validations';
@@ -303,6 +304,11 @@ export function CheckoutView() {
                 <p className="text-muted-foreground text-center text-xs">
                   No online payment — we&apos;ll confirm your order and arrange delivery.
                 </p>
+                <TrustSignals
+                  variant="list"
+                  items={['shipping', 'returns', 'support']}
+                  className="border-border mt-4 border-t pt-4"
+                />
               </CartSummary>
             </div>
           </aside>

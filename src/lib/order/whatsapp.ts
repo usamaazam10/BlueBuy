@@ -7,7 +7,10 @@
  * customer's name and phone, an itemised list and the total — everything the
  * store needs to pick up the conversation without looking anything up.
  *
- * The store number comes from `env.storeWhatsApp` (`NEXT_PUBLIC_STORE_WHATSAPP`).
+ * The store number is supplied by the caller — components read it from the CMS
+ * (`site_settings.whatsappNumber`) via `useWhatsApp()`, so an admin can change
+ * it without a rebuild. `env.storeWhatsApp` (`NEXT_PUBLIC_STORE_WHATSAPP`) is
+ * only the fallback for settings docs that predate the CMS field.
  */
 import { env } from '@/lib/env';
 import { formatPrice } from '@/lib/format';
@@ -40,7 +43,8 @@ export function buildWhatsAppMessage(order: Order): string {
  * Build the full `https://wa.me/…` link for an order, with the message
  * pre-filled and URL-encoded. Opens the store's WhatsApp chat when followed.
  */
-export function buildWhatsAppUrl(order: Order): string {
+export function buildWhatsAppUrl(order: Order, storeNumber?: string): string {
+  const number = (storeNumber || env.storeWhatsApp).replace(/\D/g, '');
   const text = encodeURIComponent(buildWhatsAppMessage(order));
-  return `https://wa.me/${env.storeWhatsApp}?text=${text}`;
+  return `https://wa.me/${number}?text=${text}`;
 }

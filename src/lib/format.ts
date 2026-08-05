@@ -14,14 +14,32 @@
  *    past order keeps rendering in the currency it was placed with.
  */
 
-/** Fallback used before settings load and when a code is missing/invalid. */
-export const DEFAULT_CURRENCY = 'USD';
-
 /** Normalize a user-supplied code to `AAA`, or `null` when unusable. */
 function normalizeCurrency(code: string | null | undefined): string | null {
   const trimmed = code?.trim().toUpperCase();
   return trimmed && /^[A-Z]{3}$/.test(trimmed) ? trimmed : null;
 }
+
+/**
+ * Fallback used before `site_settings` loads, and when a code is missing.
+ *
+ * This is the **build-time** currency, inlined identically into the prerendered
+ * HTML and the client bundle, so server and client agree on the very first paint
+ * and hydration never mismatches.
+ *
+ * Why it exists: the storefront is a static export, so prices are baked into
+ * HTML at build time — before any Firestore read. Without this, every page
+ * shipped `$` in its visible markup and only corrected to the store's real
+ * currency after hydration, which both flashed a wrong price at shoppers and
+ * contradicted the `priceCurrency` in the same page's Product JSON-LD.
+ *
+ * Set `NEXT_PUBLIC_DEFAULT_CURRENCY` to match CMS → Site settings → Regional.
+ * The CMS remains the runtime source of truth: it still overrides this the
+ * moment settings resolve, so changing the currency in the admin takes effect
+ * live and only the pre-hydration paint waits for the next deploy.
+ */
+export const DEFAULT_CURRENCY =
+  normalizeCurrency(process.env.NEXT_PUBLIC_DEFAULT_CURRENCY) ?? 'USD';
 
 let activeCurrency = DEFAULT_CURRENCY;
 

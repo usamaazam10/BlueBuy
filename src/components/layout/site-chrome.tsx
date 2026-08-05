@@ -5,6 +5,7 @@ import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
 import { SiteSettingsRuntime } from '@/components/layout/site-settings-runtime';
+import { WhatsAppButton } from '@/components/common/whatsapp-button';
 
 /**
  * Renders the public storefront chrome (skip link, sticky navbar, footer) around
@@ -45,6 +46,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
         </main>
         <Footer />
       </div>
+      <WhatsAppButton />
     </>
   );
 }
