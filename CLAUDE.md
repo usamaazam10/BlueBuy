@@ -69,7 +69,7 @@ Import via `@/` (→ `src/`). Feature types can live beside their feature; cross
 
 ### Storefront reads: build-time + client hydration
 
-- `product/[slug]` and `sitemap.ts` read Firestore **at build time** via [`src/lib/server/catalog.ts`](src/lib/server/catalog.ts) (memoized), so each product ships as static HTML with real per-product SEO/JSON-LD. Because of this, a newly created/edited product appears on the public storefront only after the **next build + deploy** — in-app (client) reads are always live.
+- `product/[slug]` and `sitemap.ts` read Firestore **at build time** via [`src/lib/server/catalog.ts`](src/lib/server/catalog.ts) (memoized), so each product ships as static HTML with real per-product SEO/JSON-LD. Because of this, a newly created/edited product appears on the public storefront only after the **next build + deploy** — in-app (client) reads are always live. `dynamicParams = false`, so an unbuilt slug 404s outright; the deploy workflow therefore rebuilds **hourly** on a schedule so admin changes reach the static site on their own (see [`DEPLOYMENT.md`](DEPLOYMENT.md) §5.1).
 - Client components read live via the query hooks, so the admin and interactive storefront always reflect current Firestore data.
 
 ### Static export gotchas (`output: 'export'`)

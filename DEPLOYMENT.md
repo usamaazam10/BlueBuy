@@ -136,8 +136,8 @@ Each successful run publishes to **https://bluebuy.store/**.
 
 ## 5. The deployment workflow (what runs)
 
-`.github/workflows/deploy.yml` — triggered on push to `main` and via manual
-`workflow_dispatch`:
+`.github/workflows/deploy.yml` — triggered on push to `main`, on an **hourly
+schedule**, and via manual `workflow_dispatch`:
 
 - **Node 22** (Active LTS) with **npm dependency caching** (`cache: npm`).
 - `npm ci` (reproducible install from the lockfile).
@@ -152,6 +152,22 @@ Each successful run publishes to **https://bluebuy.store/**.
   redeploys.
 - `actions/upload-pages-artifact@v3` uploads `./out`.
 - `actions/deploy-pages@v4` deploys, with `concurrency: pages` so runs don't overlap.
+
+### 5.1 Why it also runs hourly
+
+Product pages are **prerendered at build time** from Firestore
+([`generateStaticParams`](src/app/product/[slug]/page.tsx) with
+`dynamicParams = false`), so the static export only contains the products that
+existed during the last build. A product created in the admin afterwards has no
+page, and **its public URL 404s until the site is rebuilt** — the admin and
+in-app navigation read Firestore live, so only the direct static URL lags.
+
+The `schedule: '0 * * * *'` trigger closes that gap: new products go live within
+the hour with no manual deploy. Need one sooner? **Actions → Deploy to GitHub
+Pages → Run workflow**.
+
+> GitHub disables scheduled workflows on a repository with no activity for 60
+> days. They re-enable on the next push, or via the Actions tab.
 
 ---
 
