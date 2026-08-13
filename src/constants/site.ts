@@ -9,7 +9,8 @@ import { env } from '@/lib/env';
 
 export const SITE_CONFIG = {
   name: 'BlueBuy',
-  description: 'A modern, production-ready ecommerce experience.',
+  description:
+    'BlueBuy is an online store offering a carefully selected range of products, from trusted brands and our own BlueBuy Collection.',
 } as const;
 
 export type SiteConfig = typeof SITE_CONFIG;

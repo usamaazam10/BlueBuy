@@ -8,4 +8,4 @@
 /** Utility: make a type explicitly nullable. */
 export type Nullable<T> = T | null;
 
-export type { Product, ProductBadge, ProductSpec, Category } from './product';
+export type { ProductBadge, ProductSpec } from './product';

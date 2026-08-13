@@ -15,11 +15,12 @@ import { ProductPurchase } from '@/components/product/product-purchase';
 import { ProductGrid } from '@/components/product/product-grid';
 import { SectionTitle } from '@/components/common/section-title';
 import { TrustSignals } from '@/components/common/trust-signals';
+import { BLUEBUY_COLLECTION, isCollectionProduct } from '@/lib/collection';
 
 const BADGE_VARIANT = {
   Sale: 'sale',
   New: 'new',
-  Bestseller: 'bestseller',
+  Featured: 'featured',
   Limited: 'limited',
 } as const;
 
@@ -89,7 +90,7 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
                 >
                   {product.categoryName}
                 </Link>
-                {product.brandName && (
+                {!isCollectionProduct(product) ? (
                   <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
                     <span aria-hidden>·</span>
                     {product.brandLogo && (
@@ -107,6 +108,16 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
                     )}
                     {product.brandName}
                   </span>
+                ) : (
+                  // No brand, or BlueBuy's own label → presented as one line:
+                  // the BlueBuy Collection.
+                  <Link
+                    href={`/products?brand=${BLUEBUY_COLLECTION.slug}`}
+                    className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm transition-colors"
+                  >
+                    <span aria-hidden>·</span>
+                    {BLUEBUY_COLLECTION.name}
+                  </Link>
                 )}
                 {product.badge && (
                   <Badge variant={BADGE_VARIANT[product.badge]}>{product.badge}</Badge>
@@ -160,7 +171,7 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
 
             {/* Reassurance — canonical claims, shared with the cart & checkout */}
             <TrustSignals
-              items={['shipping', 'returns', 'warranty', 'noPayment']}
+              items={['curated', 'collection', 'support', 'noPayment']}
               className="mt-2"
             />
           </div>

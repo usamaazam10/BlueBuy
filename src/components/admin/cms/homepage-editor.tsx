@@ -174,58 +174,6 @@ export function HomepageEditor() {
             />
           </SectionCard>
 
-          <SectionCard title="Newsletter" description="Sign-up block shown in the footer.">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="news-enabled">Show newsletter</Label>
-              <Switch
-                id="news-enabled"
-                checked={draft.newsletter.enabled}
-                onCheckedChange={(enabled) =>
-                  patch({ newsletter: { ...draft.newsletter, enabled } })
-                }
-                aria-label="Show newsletter"
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Title" htmlFor="news-title">
-                <Input
-                  id="news-title"
-                  value={draft.newsletter.title}
-                  onChange={(e) =>
-                    patch({ newsletter: { ...draft.newsletter, title: e.target.value } })
-                  }
-                />
-              </Field>
-              <Field label="Button label" htmlFor="news-button">
-                <Input
-                  id="news-button"
-                  value={draft.newsletter.buttonLabel}
-                  onChange={(e) =>
-                    patch({ newsletter: { ...draft.newsletter, buttonLabel: e.target.value } })
-                  }
-                />
-              </Field>
-            </div>
-            <Field label="Subtitle" htmlFor="news-subtitle">
-              <Input
-                id="news-subtitle"
-                value={draft.newsletter.subtitle}
-                onChange={(e) =>
-                  patch({ newsletter: { ...draft.newsletter, subtitle: e.target.value } })
-                }
-              />
-            </Field>
-            <Field label="Input placeholder" htmlFor="news-placeholder">
-              <Input
-                id="news-placeholder"
-                value={draft.newsletter.placeholder}
-                onChange={(e) =>
-                  patch({ newsletter: { ...draft.newsletter, placeholder: e.target.value } })
-                }
-              />
-            </Field>
-          </SectionCard>
-
           <SectionCard
             title="SEO"
             description="Overrides the homepage title, description and keywords."

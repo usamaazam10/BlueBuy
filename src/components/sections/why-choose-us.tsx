@@ -8,9 +8,9 @@ import { TRUST_SIGNALS } from '@/components/common/trust-signals';
  * contradict the reassurance shown on the product page, cart or checkout.
  */
 const FEATURES = [
-  TRUST_SIGNALS.shipping,
-  TRUST_SIGNALS.returns,
-  TRUST_SIGNALS.warranty,
+  TRUST_SIGNALS.curated,
+  TRUST_SIGNALS.selection,
+  TRUST_SIGNALS.collection,
   TRUST_SIGNALS.support,
 ];
 
@@ -20,8 +20,8 @@ export function WhyChooseUs() {
       <Container>
         <SectionTitle
           eyebrow="Why BlueBuy"
-          title="Designed around you"
-          description="We sweat the details so every purchase feels effortless — before, during and after."
+          title="Why shop BlueBuy?"
+          description="A hand-picked catalogue, a growing range of categories and brands, and someone to talk to when you need help."
         />
 
         <Stagger className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

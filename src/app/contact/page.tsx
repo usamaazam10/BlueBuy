@@ -7,7 +7,8 @@ import { absoluteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Contact',
-  description: 'Get in touch with the BlueBuy team — we’re here to help 7 days a week.',
+  description:
+    'Get in touch with BlueBuy about a product, an order or availability — by WhatsApp, email or phone.',
   alternates: { canonical: absoluteUrl('/contact/') },
 };
 

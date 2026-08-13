@@ -1,4 +1,4 @@
-import { Truck, RotateCcw, ShieldCheck, Headphones, Lock } from 'lucide-react';
+import { BadgeCheck, LayoutGrid, MessageCircle, Package, Lock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,43 +15,45 @@ export interface TrustSignal {
  *
  * Every surface that reassures a shopper (homepage benefits, product detail,
  * cart, checkout) pulls from here, so a policy change is a one-line edit and the
- * storefront can never advertise "30-day returns" in one place and "14-day" in
- * another.
+ * storefront can never say one thing in one place and something else in another.
  *
- * Claims are deliberately limited to what this store actually offers. Note there
- * is no "secure payment" claim: checkout takes no card details at all, which is
- * why `noPayment` states that outright rather than implying a payment gateway.
+ * **Rule for anything added here: it must describe something BlueBuy actually
+ * does today.** No shipping, returns, warranty or rating claims live here,
+ * because no such policy has been published — advertising one the store cannot
+ * honour is worse than saying nothing. Each entry below is a statement about how
+ * this store genuinely works: a hand-picked catalogue, an own-label product
+ * line, direct human support, and an order flow that takes no card details.
  */
 export const TRUST_SIGNALS = {
-  shipping: {
-    id: 'shipping',
-    icon: Truck,
-    label: 'Free, fast shipping',
-    detail: 'Complimentary carbon-neutral delivery on every order, worldwide.',
+  curated: {
+    id: 'curated',
+    icon: BadgeCheck,
+    label: 'Curated products',
+    detail: 'Every item in the catalogue is chosen with quality, usefulness and value in mind.',
   },
-  returns: {
-    id: 'returns',
-    icon: RotateCcw,
-    label: '30-day returns',
-    detail: 'Changed your mind? Send it back within 30 days, no questions asked.',
+  selection: {
+    id: 'selection',
+    icon: LayoutGrid,
+    label: 'Wide selection',
+    detail: 'Browse products across our growing range of categories and brands.',
   },
-  warranty: {
-    id: 'warranty',
-    icon: ShieldCheck,
-    label: '2-year warranty',
-    detail: 'Every product is backed by our comprehensive, hassle-free warranty.',
+  collection: {
+    id: 'collection',
+    icon: Package,
+    label: 'BlueBuy Collection',
+    detail: 'Selected products sourced and offered directly under our own BlueBuy Collection.',
   },
   support: {
     id: 'support',
-    icon: Headphones,
-    label: 'Human support',
-    detail: 'Real people, ready to help you 7 days a week via chat or email.',
+    icon: MessageCircle,
+    label: 'Customer support',
+    detail: 'Need help choosing a product or placing an order? Message us and we will reply.',
   },
   noPayment: {
     id: 'no-payment',
     icon: Lock,
     label: 'No card details needed',
-    detail: 'We confirm your order and arrange payment on delivery.',
+    detail: 'We confirm your order with you and arrange payment on delivery.',
   },
 } as const satisfies Record<string, TrustSignal>;
 

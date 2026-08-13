@@ -90,12 +90,12 @@ export function CartView() {
                 <Link href="/checkout">Proceed to checkout</Link>
               </Button>
               <p className="text-muted-foreground text-center text-xs">
-                Shipping calculated at checkout.
+                No payment is taken online.
               </p>
             </div>
             <TrustSignals
               variant="list"
-              items={['shipping', 'returns', 'noPayment']}
+              items={['noPayment', 'support']}
               className="border-border mt-4 border-t pt-4"
             />
           </CartSummary>

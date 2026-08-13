@@ -9,7 +9,13 @@ import { env } from '@/lib/env';
  * `{product}` is replaced with that product's name.
  */
 const PRODUCT_MESSAGE_TEMPLATE =
-  "As-salamu Alaikum! I'm interested in this product:\n\n{product}\n\nCould you please provide more details?";
+  "As-salamu Alaikum! I'm interested in {product} on BlueBuy. Could you please provide more information?";
+
+/**
+ * Greeting used off product pages when the CMS has no custom message set.
+ * Mirrors {@link DEFAULT_SITE_SETTINGS.whatsappMessage}.
+ */
+export const GENERAL_MESSAGE = 'As-salamu Alaikum! I have a question about BlueBuy.';
 
 /** Build the product-enquiry message for a given product name. */
 export function buildProductMessage(productName: string): string {
@@ -40,7 +46,9 @@ export function useWhatsApp(): UseWhatsApp {
   const { data: settings } = useSiteSettings();
 
   const number = (settings?.whatsappNumber || env.storeWhatsApp || '').replace(/\D/g, '');
-  const defaultMessage = settings?.whatsappMessage?.trim() || '';
+  // An empty CMS greeting would open WhatsApp with a blank composer; fall back
+  // to the store's standard greeting so the enquiry always starts somewhere.
+  const defaultMessage = settings?.whatsappMessage?.trim() || GENERAL_MESSAGE;
 
   const buildUrl = React.useCallback(
     (message?: string) => {

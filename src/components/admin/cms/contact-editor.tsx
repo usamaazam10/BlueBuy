@@ -89,6 +89,26 @@ export function ContactEditor() {
               />
             </Field>
           </SectionCard>
+
+          <SectionCard
+            title="Contact form delivery"
+            description="Where messages from the contact form go. The site is a static export with no server, so the form must hand off to something real."
+          >
+            <Field
+              label="Form endpoint"
+              htmlFor="contact-endpoint"
+              hint="Optional https:// endpoint from a hosted form service (Formspree, Web3Forms, Getform…) that forwards submissions to your inbox. This URL is public — never paste an API secret here. Leave empty to have the form hand off to WhatsApp, or to email when no WhatsApp number is set."
+            >
+              <Input
+                id="contact-endpoint"
+                type="url"
+                inputMode="url"
+                placeholder="https://formspree.io/f/xxxxxxxx"
+                value={draft.formEndpoint}
+                onChange={(e) => patch({ formEndpoint: e.target.value })}
+              />
+            </Field>
+          </SectionCard>
         </>
       )}
     </CmsFormShell>

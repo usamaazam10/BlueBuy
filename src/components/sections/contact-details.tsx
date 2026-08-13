@@ -1,25 +1,38 @@
 'use client';
 
-import { Mail, MapPin, Phone, Clock, type LucideIcon } from 'lucide-react';
+import { Mail, MapPin, MessageCircle, Phone, Clock, type LucideIcon } from 'lucide-react';
 import { Reveal } from '@/components/common/motion';
 import { useContactInformation } from '@/hooks/queries';
+import { useWhatsApp } from '@/hooks/use-whatsapp';
 
 interface ContactMethod {
   icon: LucideIcon;
   label: string;
   value: string;
   href: string | null;
+  external?: boolean;
 }
 
 /**
- * Contact intro + methods, driven by the `contact_information` CMS singleton.
- * Renders the heading/subheading and a list of contact methods (email, phone,
- * address, hours) — each shown only when it has a value.
+ * Contact intro + methods, driven by the `contact_information` CMS singleton
+ * (plus the store's WhatsApp number from `site_settings`).
+ *
+ * Every method is shown only when it has a real value, so an unconfigured store
+ * lists nothing rather than a placeholder address or number.
  */
 export function ContactDetails() {
   const { data: contact } = useContactInformation();
+  const { enabled: whatsAppEnabled, buildUrl: buildWhatsAppUrl } = useWhatsApp();
 
   const methods: ContactMethod[] = [];
+  if (whatsAppEnabled)
+    methods.push({
+      icon: MessageCircle,
+      label: 'WhatsApp',
+      value: 'Chat with us on WhatsApp',
+      href: buildWhatsAppUrl(),
+      external: true,
+    });
   if (contact!.email)
     methods.push({
       icon: Mail,
@@ -35,7 +48,7 @@ export function ContactDetails() {
       href: `tel:${contact!.phone.replace(/[^\d+]/g, '')}`,
     });
   if (contact!.address)
-    methods.push({ icon: MapPin, label: 'Studio', value: contact!.address, href: null });
+    methods.push({ icon: MapPin, label: 'Address', value: contact!.address, href: null });
   if (contact!.hours)
     methods.push({ icon: Clock, label: 'Hours', value: contact!.hours, href: null });
 
@@ -76,6 +89,8 @@ export function ContactDetails() {
                 {method.href ? (
                   <a
                     href={method.href}
+                    target={method.external ? '_blank' : undefined}
+                    rel={method.external ? 'noopener noreferrer' : undefined}
                     className="focus-visible:ring-ring block rounded-2xl outline-none focus-visible:ring-2"
                   >
                     {content}

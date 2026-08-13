@@ -85,7 +85,7 @@ export interface SiteSettings {
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   storeName: 'BlueBuy',
-  tagline: 'A modern, production-ready ecommerce experience.',
+  tagline: 'Discover and shop carefully selected products.',
   logoUrl: '',
   faviconUrl: '',
   appleTouchIconUrl: '',
@@ -96,12 +96,15 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   emailLogoUrl: '',
   primaryColor: '',
   secondaryColor: '',
-  supportEmail: 'support@bluebuy.com',
-  supportPhone: '+1 (555) 010-2040',
+  // Contact details are deliberately empty by default: every surface that shows
+  // them hides itself when the value is blank, so an unconfigured store shows no
+  // contact method rather than a fictional one. Fill these in from
+  // Admin → CMS → Site settings.
+  supportEmail: '',
+  supportPhone: '',
   whatsappNumber: '',
-  whatsappMessage:
-    'As-salamu Alaikum! I found your website and would like to know more about your products.',
-  businessAddress: '500 Market St, San Francisco',
+  whatsappMessage: 'As-salamu Alaikum! I have a question about BlueBuy.',
+  businessAddress: '',
   // Build-time currency, not a literal: this default is what every price renders
   // with until Firestore responds (it is React Query's placeholder for
   // `site_settings`), so hard-coding 'USD' here made prerendered HTML disagree
@@ -131,15 +134,6 @@ export interface PromoBanner {
   cta: CmsLink;
 }
 
-/** Newsletter sign-up section (rendered in the footer). */
-export interface NewsletterSection {
-  enabled: boolean;
-  title: string;
-  subtitle: string;
-  placeholder: string;
-  buttonLabel: string;
-}
-
 /** Homepage-specific SEO overrides. */
 export interface HomepageSeo {
   title: string;
@@ -161,35 +155,27 @@ export interface Homepage {
    */
   featuredProductIds: string[];
   promoBanner: PromoBanner;
-  newsletter: NewsletterSection;
   seo: HomepageSeo;
 }
 
 export const DEFAULT_HOMEPAGE: Homepage = {
   hero: {
-    eyebrow: 'New season, new arrivals',
-    title: 'Premium tech, beautifully simple.',
+    eyebrow: 'Shop the catalogue',
+    title: 'Discover products you’ll love',
     subtitle:
-      'BlueBuy brings together thoughtfully designed audio, wearables and displays — the essentials, refined. Free shipping, 30-day returns.',
-    primaryCta: { label: 'Shop the collection', href: '/products' },
-    secondaryCta: { label: 'Our story', href: '/about' },
+      'Explore a growing selection of products from trusted brands and the BlueBuy Collection.',
+    primaryCta: { label: 'Shop now', href: '/products' },
+    secondaryCta: { label: 'Explore categories', href: '/#categories' },
     backgroundImage: '',
   },
   featuredCategoryIds: [],
   featuredProductIds: [],
   promoBanner: {
     enabled: true,
-    title: 'Ready to upgrade your everyday?',
+    title: 'Find your next favourite product',
     subtitle:
-      'Join thousands who’ve made the switch to BlueBuy. Discover products that fit seamlessly into your life.',
-    cta: { label: 'Start shopping', href: '/products' },
-  },
-  newsletter: {
-    enabled: true,
-    title: 'Join our newsletter',
-    subtitle: 'Get product drops, offers and stories — straight to your inbox.',
-    placeholder: 'you@example.com',
-    buttonLabel: 'Subscribe',
+      'Browse the full catalogue by category or brand — and message us if you need help choosing.',
+    cta: { label: 'Shop all products', href: '/products' },
   },
   seo: {
     title: '',
@@ -214,35 +200,41 @@ export interface Footer {
   copyright: string;
 }
 
+/**
+ * Every default link below points at a page that actually exists. Two omissions
+ * are deliberate:
+ *
+ *  - Policy pages (shipping, returns, FAQ, privacy, terms) — a link labelled
+ *    "Returns" that lands on `/contact` implies a policy the store has not
+ *    published. Add them once the pages exist.
+ *  - A "Brands" link — the homepage brand section only renders when the
+ *    catalogue carries third-party brands, so the `/#brands` anchor would be
+ *    dead for an entirely own-label catalogue. Add it once brands are stocked.
+ *
+ * Admin → CMS → Footer overrides all of this.
+ */
 export const DEFAULT_FOOTER: Footer = {
-  tagline: 'Premium tech, thoughtfully designed. Free shipping and 30-day returns on every order.',
+  tagline:
+    'Discover and shop carefully selected products, from trusted brands and our own BlueBuy Collection.',
   columns: [
     {
+      title: 'Shop',
+      links: [
+        { label: 'All products', href: '/products' },
+        { label: 'Categories', href: '/#categories' },
+        { label: 'BlueBuy Collection', href: '/products?brand=bluebuy-collection' },
+      ],
+    },
+    {
+      title: 'Customer',
+      links: [
+        { label: 'Contact us', href: '/contact' },
+        { label: 'Your cart', href: '/cart' },
+      ],
+    },
+    {
       title: 'Company',
-      links: [
-        { label: 'About', href: '/about' },
-        { label: 'Products', href: '/products' },
-        { label: 'Careers', href: '/about' },
-        { label: 'Press', href: '/about' },
-      ],
-    },
-    {
-      title: 'Support',
-      links: [
-        { label: 'Contact', href: '/contact' },
-        { label: 'Shipping', href: '/contact' },
-        { label: 'Returns', href: '/contact' },
-        { label: 'Warranty', href: '/contact' },
-      ],
-    },
-    {
-      title: 'Legal',
-      links: [
-        { label: 'Privacy', href: '/contact' },
-        { label: 'Terms', href: '/contact' },
-        { label: 'Cookies', href: '/contact' },
-        { label: 'Licenses', href: '/contact' },
-      ],
+      links: [{ label: 'About BlueBuy', href: '/about' }],
     },
   ],
   copyright: '© {year} BlueBuy. All rights reserved.',
@@ -257,21 +249,32 @@ export interface ContactInformation {
   subheading: string;
   email: string;
   phone: string;
-  /** Physical address / studio label. */
+  /** Physical address / shop location. */
   address: string;
   /** Optional supporting line (e.g. opening hours). */
   hours: string;
+  /**
+   * Optional endpoint for a hosted form service (Formspree, Web3Forms, Getform,
+   * …) that forwards submissions to the store's inbox. This is a **public**
+   * endpoint URL, never an API secret — the static site has no server to hide
+   * one behind. When empty, the contact form hands the message off to WhatsApp
+   * or email instead, so it always reaches a real destination.
+   */
+  formEndpoint: string;
 }
 
 export const DEFAULT_CONTACT_INFORMATION: ContactInformation = {
   eyebrow: 'Contact',
-  heading: 'We’d love to hear from you',
+  heading: 'How can we help?',
   subheading:
-    'Questions about a product, an order, or just want to say hello? Our team replies within one business day.',
-  email: 'support@bluebuy.com',
-  phone: '+1 (555) 010-2040',
-  address: '500 Market St, San Francisco',
+    'Questions about a product, an order or availability? Send us a message and we’ll get back to you.',
+  // Left blank on purpose — each method renders only when it has a real value.
+  // Fill these in from Admin → CMS → Contact information.
+  email: '',
+  phone: '',
+  address: '',
   hours: '',
+  formEndpoint: '',
 };
 
 // ─────────────────────────────────── navigation ──────────────────────────────
@@ -339,10 +342,10 @@ export interface SocialLink {
   active: boolean;
 }
 
-/** Seed items used when the `social_links` collection is empty. */
-export const DEFAULT_SOCIAL_LINKS: Omit<SocialLink, 'id'>[] = [
-  { platform: 'twitter', label: 'Twitter', url: '#', sortOrder: 0, active: true },
-  { platform: 'instagram', label: 'Instagram', url: '#', sortOrder: 1, active: true },
-  { platform: 'github', label: 'GitHub', url: '#', sortOrder: 2, active: true },
-  { platform: 'linkedin', label: 'LinkedIn', url: '#', sortOrder: 3, active: true },
-];
+/**
+ * Seed items used when the `social_links` collection is empty.
+ *
+ * Deliberately empty: the storefront must only ever link to accounts BlueBuy
+ * actually has. Add the real ones from Admin → CMS → Social links.
+ */
+export const DEFAULT_SOCIAL_LINKS: Omit<SocialLink, 'id'>[] = [];

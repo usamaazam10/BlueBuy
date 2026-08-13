@@ -38,8 +38,8 @@ export function FeaturedProducts() {
           <SectionTitle
             align="left"
             eyebrow="Featured"
-            title="Best of BlueBuy"
-            description="Hand-picked favourites our customers love most."
+            title="Featured products"
+            description="A hand-picked selection from the BlueBuy catalogue."
             className="items-center text-center sm:items-start sm:text-left"
           />
           <Button asChild variant="outline" className="hidden shrink-0 sm:inline-flex">

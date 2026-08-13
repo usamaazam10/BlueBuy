@@ -94,13 +94,6 @@ export const homepageSchema = z.object({
     subtitle: z.string().trim().max(600).default(''),
     cta: cmsLinkSchema,
   }),
-  newsletter: z.object({
-    enabled: z.boolean().default(true),
-    title: z.string().trim().max(200).default(''),
-    subtitle: z.string().trim().max(600).default(''),
-    placeholder: z.string().trim().max(120).default(''),
-    buttonLabel: z.string().trim().max(60).default(''),
-  }),
   seo: z.object({
     title: z.string().trim().max(200).default(''),
     description: z.string().trim().max(400).default(''),
@@ -137,6 +130,13 @@ export const contactInformationSchema = z.object({
   phone: z.string().trim().max(60).default(''),
   address: z.string().trim().max(300).default(''),
   hours: z.string().trim().max(200).default(''),
+  /** Public form-service endpoint (https only), or empty for the WhatsApp/email handoff. */
+  formEndpoint: z
+    .union([
+      z.url().refine((v) => v.startsWith('https://'), 'Must be an https:// URL'),
+      z.literal(''),
+    ])
+    .default(''),
 });
 
 export type ContactInformationInput = z.infer<typeof contactInformationSchema>;

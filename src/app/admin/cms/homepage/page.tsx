@@ -9,7 +9,7 @@ export default function HomepageCmsPage() {
     <div>
       <PageHeader
         title="Homepage"
-        description="Edit the hero, featured content, promotional banner, newsletter and SEO."
+        description="Edit the hero, featured content, promotional banner and SEO."
         breadcrumb={[
           { label: 'Admin', href: '/admin' },
           { label: 'Content' },

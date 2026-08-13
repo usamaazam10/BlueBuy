@@ -10,7 +10,14 @@ interface RatingProps {
   showValue?: boolean;
 }
 
-/** Accessible star rating with partial-fill support via a clipped overlay. */
+/**
+ * Accessible star rating with partial-fill support via a clipped overlay.
+ *
+ * Renders **nothing** until a product has at least one real review. Ratings are
+ * server-managed aggregates that start at zero, so showing stars before any
+ * review exists would put an invented score in front of shoppers — an empty
+ * five-star row reads as "rated 0/5", which is just as untrue as "4.8".
+ */
 export function Rating({
   value,
   reviewCount,
@@ -18,6 +25,8 @@ export function Rating({
   className,
   showValue = true,
 }: RatingProps) {
+  if (!reviewCount || reviewCount < 1) return null;
+
   const clamped = Math.max(0, Math.min(5, value));
   const percent = (clamped / 5) * 100;
   const starSize = size === 'sm' ? 'size-3.5' : 'size-4';

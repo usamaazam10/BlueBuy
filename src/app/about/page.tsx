@@ -1,44 +1,44 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Compass, Leaf, Sparkles } from 'lucide-react';
+import { ArrowRight, BadgeCheck, MessageCircle, Package } from 'lucide-react';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { SectionTitle } from '@/components/common/section-title';
 import { Reveal, Stagger, StaggerItem } from '@/components/common/motion';
+import { BLUEBUY_COLLECTION } from '@/lib/collection';
 import { absoluteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'About',
   description:
-    'BlueBuy designs premium, minimal technology for everyday life — built to last and made responsibly.',
+    'BlueBuy is an online store offering a carefully selected range of products, from trusted brands and our own BlueBuy Collection.',
   alternates: { canonical: absoluteUrl('/about/') },
 };
 
-const STATS = [
-  { value: '250k+', label: 'Happy customers' },
-  { value: '40+', label: 'Countries shipped' },
-  { value: '4.8/5', label: 'Average rating' },
-  { value: '2015', label: 'Founded' },
-];
-
+/**
+ * How the store works — each point describes something the storefront actually
+ * does. No founding dates, customer counts, ratings or awards: none of that has
+ * been supplied, and inventing it to look established would be a lie to
+ * shoppers.
+ */
 const VALUES = [
   {
-    icon: Compass,
-    title: 'Design-led',
+    icon: BadgeCheck,
+    title: 'Selected, not stocked at random',
     description:
-      'Every product starts with the experience. If it does not feel effortless, it is not ready.',
+      'Products are added to the catalogue one at a time, chosen for quality, usefulness and value rather than to fill a shelf.',
   },
   {
-    icon: Leaf,
-    title: 'Made responsibly',
+    icon: Package,
+    title: BLUEBUY_COLLECTION.name,
     description:
-      'Recycled materials, carbon-neutral shipping and packaging that respects the planet.',
+      'Some products are sourced by us directly rather than carrying a well-known label. Those are offered under the BlueBuy Collection — our own curated product line.',
   },
   {
-    icon: Sparkles,
-    title: 'Built to last',
+    icon: MessageCircle,
+    title: 'Talk to us before you buy',
     description:
-      'Premium components and a 2-year warranty, because good things should not be disposable.',
+      'Not sure which product is right, or whether something is in stock? Message us and a person will answer — before you order, not just after.',
   },
 ];
 
@@ -52,42 +52,41 @@ export default function AboutPage() {
           <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
             <Reveal>
               <span className="text-brand text-sm font-semibold tracking-wide uppercase">
-                Our story
+                About BlueBuy
               </span>
             </Reveal>
             <Reveal delay={0.05}>
               <h1 className="mt-4 text-4xl font-semibold text-balance sm:text-6xl">
-                Technology that gets out of your way
+                A shop for products worth keeping
               </h1>
             </Reveal>
             <Reveal delay={0.1}>
               <p className="text-muted-foreground mt-6 max-w-xl text-lg text-pretty">
-                BlueBuy started with a simple belief: the best technology is the kind you barely
-                notice. We design premium, minimal products that just work — beautifully.
+                BlueBuy is an online store. We put together a growing catalogue of products across
+                several categories — from brands you know, and from our own BlueBuy Collection — and
+                make them simple to browse, compare and order.
               </p>
+            </Reveal>
+            <Reveal delay={0.15}>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button asChild variant="brand" size="lg">
+                  <Link href="/products">
+                    Shop now <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="lg">
+                  <Link href="/contact">Contact us</Link>
+                </Button>
+              </div>
             </Reveal>
           </div>
         </Container>
       </section>
 
-      {/* Stats */}
-      <Container className="pb-8">
-        <Stagger className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {STATS.map((stat) => (
-            <StaggerItem key={stat.label}>
-              <div className="border-border flex flex-col items-center gap-1 rounded-2xl border py-8 text-center">
-                <span className="text-3xl font-semibold sm:text-4xl">{stat.value}</span>
-                <span className="text-muted-foreground text-sm">{stat.label}</span>
-              </div>
-            </StaggerItem>
-          ))}
-        </Stagger>
-      </Container>
-
-      {/* Values */}
+      {/* How we shop for you */}
       <section className="py-20 sm:py-24">
         <Container>
-          <SectionTitle eyebrow="What we believe" title="The principles behind every product" />
+          <SectionTitle eyebrow="How we work" title="What you can expect from BlueBuy" />
           <Stagger className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
             {VALUES.map((value) => (
               <StaggerItem key={value.title}>
@@ -104,23 +103,21 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      {/* Mission band */}
+      {/* Ordering band */}
       <Container className="pb-20">
         <Reveal>
           <div className="border-border grid grid-cols-1 gap-8 rounded-3xl border p-8 sm:p-14 lg:grid-cols-2 lg:items-center">
             <div className="flex flex-col gap-4">
-              <h2 className="text-3xl font-semibold text-balance">
-                We sweat the details so you don’t have to
-              </h2>
+              <h2 className="text-3xl font-semibold text-balance">Ordering is straightforward</h2>
               <p className="text-muted-foreground text-pretty">
-                From the first unboxing to years of daily use, we obsess over the moments that make
-                a product feel considered. That means intuitive setup, materials that age well, and
-                support from real people whenever you need it.
+                Add what you want to your cart, place the order with your name, contact number and
+                delivery address, and we&apos;ll confirm it with you directly. There is no online
+                payment step and no card details are collected — payment is arranged on delivery.
               </p>
               <div>
                 <Button asChild variant="brand">
                   <Link href="/products">
-                    Explore our products <ArrowRight className="size-4" />
+                    Browse the catalogue <ArrowRight className="size-4" />
                   </Link>
                 </Button>
               </div>

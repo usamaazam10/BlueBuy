@@ -2,18 +2,18 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Clock, MessageCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import type { Order } from '@/types/order';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/hooks/use-currency';
 import { useWhatsApp } from '@/hooks/use-whatsapp';
-import { ESTIMATED_PROCESSING, buildWhatsAppUrl } from '@/lib/order';
+import { buildWhatsAppUrl } from '@/lib/order';
 
 /**
  * Post-checkout confirmation screen. Purely presentational — it receives the
- * placed {@link Order} and shows the order number, an estimated processing
- * window, a line summary, and the two next-step actions: keep shopping, or hand
+ * placed {@link Order} and shows the order number, what happens next, a line
+ * summary, and the two next-step actions: keep shopping, or hand
  * the order off to the store on WhatsApp (a pre-filled message; see
  * `@/lib/order/whatsapp`). No online payment is involved.
  */
@@ -55,10 +55,10 @@ export function OrderSuccess({ order }: { order: Order }) {
             </div>
             <div className="text-right">
               <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Estimated processing
+                Next step
               </p>
               <p className="text-foreground mt-1 inline-flex items-center gap-1.5 text-sm font-medium">
-                <Clock className="size-4" /> {ESTIMATED_PROCESSING}
+                <MessageCircle className="size-4" /> We&apos;ll contact you
               </p>
             </div>
           </div>

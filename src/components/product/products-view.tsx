@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { useStoreProducts, useStoreCategories, useStoreBrands } from '@/hooks/queries';
 import type { StoreProduct } from '@/types/store';
+import { BLUEBUY_COLLECTION, isCollectionProduct, isOwnLabelBrand } from '@/lib/collection';
 import { cn } from '@/lib/utils';
 import { ProductGrid } from './product-grid';
 import { ProductGridSkeleton } from './product-grid-skeleton';
@@ -45,26 +46,48 @@ function sortProducts(products: StoreProduct[], sort: SortKey): StoreProduct[] {
 export function ProductsView() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get('category') ?? 'all';
+  const initialBrand = searchParams.get('brand') ?? 'all';
 
   const { data: products, isLoading, isError, refetch } = useStoreProducts();
   const { data: categories } = useStoreCategories();
   const { data: brands } = useStoreBrands();
 
   const [category, setCategory] = React.useState<string>(initialCategory);
-  const [brand, setBrand] = React.useState<string>('all');
+  const [brand, setBrand] = React.useState<string>(initialBrand);
   const [search, setSearch] = React.useState('');
   const [sort, setSort] = React.useState<SortKey>('featured');
 
-  // Keep the filter in sync if the query param changes (e.g. nav from a card).
+  // Keep the filters in sync if the query params change (e.g. nav from a card,
+  // a brand tile, or the footer's BlueBuy Collection link).
   React.useEffect(() => {
     setCategory(searchParams.get('category') ?? 'all');
+    setBrand(searchParams.get('brand') ?? 'all');
   }, [searchParams]);
+
+  /** Does the catalogue contain any own-sourced (BlueBuy Collection) product? */
+  const hasCollection = React.useMemo(() => products.some(isCollectionProduct), [products]);
+
+  // BlueBuy's own label is offered as "BlueBuy Collection" instead of as a
+  // third-party brand, so it must not appear twice in the dropdown.
+  const thirdPartyBrands = React.useMemo(
+    () => brands.filter((brand) => !isOwnLabelBrand(brand.name)),
+    [brands]
+  );
 
   const filtered = React.useMemo(() => {
     const query = search.trim().toLowerCase();
+    // `brand` holds a brand slug, the collection slug, or 'all'. Resolve the
+    // slug to an id once rather than per product.
+    const selectedBrandId =
+      brand === 'all' || brand === BLUEBUY_COLLECTION.slug
+        ? null
+        : (brands.find((b) => b.slug === brand || b.id === brand)?.id ?? brand);
+
     const matched = products.filter((product) => {
       if (category !== 'all' && product.categorySlug !== category) return false;
-      if (brand !== 'all' && product.brandId !== brand) return false;
+      if (brand === BLUEBUY_COLLECTION.slug) {
+        if (!isCollectionProduct(product)) return false;
+      } else if (selectedBrandId && product.brandId !== selectedBrandId) return false;
       if (query) {
         const haystack =
           `${product.title} ${product.categoryName} ${product.brandName} ${product.description}`.toLowerCase();
@@ -73,7 +96,7 @@ export function ProductsView() {
       return true;
     });
     return sortProducts(matched, sort);
-  }, [products, category, brand, search, sort]);
+  }, [products, brands, category, brand, search, sort]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -108,7 +131,7 @@ export function ProductsView() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          {brands.length > 0 && (
+          {(thirdPartyBrands.length > 0 || hasCollection) && (
             <>
               <label htmlFor="brand" className="text-muted-foreground text-sm">
                 Brand
@@ -120,8 +143,11 @@ export function ProductsView() {
                 className="border-border bg-background focus-visible:border-brand focus-visible:ring-ring/40 h-10 rounded-full border px-4 text-sm font-medium outline-none focus-visible:ring-2"
               >
                 <option value="all">All brands</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
+                {hasCollection && (
+                  <option value={BLUEBUY_COLLECTION.slug}>{BLUEBUY_COLLECTION.name}</option>
+                )}
+                {thirdPartyBrands.map((b) => (
+                  <option key={b.id} value={b.slug}>
                     {b.name}
                   </option>
                 ))}

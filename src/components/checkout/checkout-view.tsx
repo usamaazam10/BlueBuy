@@ -306,7 +306,7 @@ export function CheckoutView() {
                 </p>
                 <TrustSignals
                   variant="list"
-                  items={['shipping', 'returns', 'support']}
+                  items={['noPayment', 'support']}
                   className="border-border mt-4 border-t pt-4"
                 />
               </CartSummary>

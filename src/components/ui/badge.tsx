@@ -13,7 +13,7 @@ const badgeVariants = cva(
         outline: 'border border-border text-foreground',
         sale: 'bg-rose-500 text-white',
         new: 'bg-emerald-500 text-white',
-        bestseller: 'bg-amber-500 text-white',
+        featured: 'bg-amber-500 text-white',
         limited: 'bg-violet-500 text-white',
       },
     },

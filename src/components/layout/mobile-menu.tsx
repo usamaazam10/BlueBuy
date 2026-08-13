@@ -39,7 +39,9 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
       </nav>
       <div className="border-border mt-auto border-t p-5">
         <Logo />
-        <p className="text-muted-foreground mt-3 text-sm">Premium tech, thoughtfully made.</p>
+        <p className="text-muted-foreground mt-3 text-sm">
+          Discover and shop carefully selected products.
+        </p>
       </div>
     </Drawer>
   );

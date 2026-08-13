@@ -70,8 +70,13 @@ export function CartSummary({ totals, children, className }: CartSummaryProps) {
         </div>
       </div>
 
+      {/* No shipping/tax rows means the total is exactly the subtotal. Say what
+          actually happens next rather than implying charges that get added
+          later — delivery is agreed when we confirm the order. */}
       {!showShipping && !showTax && (
-        <p className="text-muted-foreground text-xs">Shipping and taxes calculated at checkout.</p>
+        <p className="text-muted-foreground text-xs">
+          Delivery is arranged when we confirm your order.
+        </p>
       )}
 
       {children}

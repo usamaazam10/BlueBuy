@@ -70,10 +70,17 @@ function isOnSale(product: Product): boolean {
   return product.salePrice != null && product.salePrice < product.price;
 }
 
-/** Derive a display badge from the product's state, or undefined for none. */
+/**
+ * Derive a display badge from the product's state, or undefined for none.
+ *
+ * Every badge is a statement of fact about the document: it has a lower sale
+ * price, an admin flagged it as featured, stock is nearly out, or it was created
+ * recently. Nothing here implies sales volume or popularity — the store has no
+ * such data, so there is deliberately no "Bestseller".
+ */
 function deriveBadge(product: Product, createdAtMs: number): ProductBadge | undefined {
   if (isOnSale(product)) return 'Sale';
-  if (product.featured) return 'Bestseller';
+  if (product.featured) return 'Featured';
   if (product.stock > 0 && product.stock <= 5) return 'Limited';
   // "New" = created within the last 30 days (when a timestamp is available).
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;

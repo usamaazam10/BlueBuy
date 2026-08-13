@@ -22,6 +22,8 @@ const DECORATIVE_TILES = ['tile-a', 'tile-b', 'tile-c'].map((seed) => ({
   src: undefined as string | undefined,
   accent: deriveAccent(seed),
   seed,
+  title: undefined as string | undefined,
+  href: undefined as string | undefined,
 }));
 
 export function Hero() {
@@ -30,7 +32,7 @@ export function Hero() {
   const { data: homepage } = useHomepage();
   const hero = homepage!.hero;
 
-  // Purely decorative tiles; fall back to placeholder art before data loads.
+  // Real, shoppable products; fall back to placeholder art before data loads.
   const tiles =
     data.length > 0
       ? data.slice(0, 3).map((product) => ({
@@ -38,6 +40,8 @@ export function Hero() {
           src: product.thumbnail || undefined,
           accent: product.accent,
           seed: product.slug,
+          title: product.title,
+          href: `/product/${product.slug}`,
         }))
       : DECORATIVE_TILES;
 
@@ -115,26 +119,47 @@ export function Hero() {
           </motion.div>
         </motion.div>
 
-        {/* Floating product tiles */}
-        <div aria-hidden className="pointer-events-none mt-16 hidden justify-center gap-6 lg:flex">
-          {tiles.map((tile, i) => (
-            <motion.div
-              key={tile.key}
-              initial={reduceMotion ? false : { opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: EASE, delay: 0.5 + i * 0.12 }}
-              className="bg-card border-border shadow-foreground/5 w-64 overflow-hidden rounded-3xl border shadow-xl"
-              style={{ transform: `translateY(${i === 1 ? '-24px' : '0'})` }}
-            >
+        {/* Real products from the catalogue — shoppable, not decoration. Falls
+            back to abstract tiles only while loading / before the store has
+            stock, and those are inert and hidden from assistive tech. */}
+        <div className="mt-16 hidden justify-center gap-6 lg:flex">
+          {tiles.map((tile, i) => {
+            const media = (
               <ProductImage
                 src={tile.src}
-                alt=""
+                alt={tile.title ?? ''}
                 seed={tile.seed}
                 accent={tile.accent}
                 className="aspect-[4/5] w-full"
               />
-            </motion.div>
-          ))}
+            );
+            return (
+              <motion.div
+                key={tile.key}
+                initial={reduceMotion ? false : { opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: EASE, delay: 0.5 + i * 0.12 }}
+                className="bg-card border-border shadow-foreground/5 w-64 overflow-hidden rounded-3xl border shadow-xl"
+                style={{ transform: `translateY(${i === 1 ? '-24px' : '0'})` }}
+                aria-hidden={tile.href ? undefined : true}
+              >
+                {tile.href ? (
+                  <Link
+                    href={tile.href}
+                    className="focus-visible:ring-ring block outline-none focus-visible:ring-2"
+                  >
+                    {media}
+                    <span className="flex flex-col gap-0.5 p-4 text-left">
+                      <span className="truncate text-sm font-medium">{tile.title}</span>
+                      <span className="text-muted-foreground text-xs">Shop now</span>
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="pointer-events-none">{media}</div>
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       </Container>
     </section>

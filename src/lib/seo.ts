@@ -10,6 +10,7 @@
 import type { Metadata } from 'next';
 import { env } from '@/lib/env';
 import { SITE_CONFIG } from '@/constants/site';
+import { productBrandLabel } from '@/lib/collection';
 import type { StoreProduct } from '@/types/store';
 
 /** Absolute URL for a storefront path, honouring the GitHub Pages base path. */
@@ -79,7 +80,9 @@ export function productJsonLd(product: StoreProduct): Record<string, unknown> {
     description: product.shortDescription || product.description,
     sku: product.id,
     image: product.images.map((image) => image.url),
-    ...(product.brandName ? { brand: { '@type': 'Brand', name: product.brandName } } : {}),
+    // Products with no brand document are BlueBuy's own line, so the brand is
+    // still known — it's the BlueBuy Collection.
+    brand: { '@type': 'Brand', name: productBrandLabel(product) },
     ...(product.categoryName ? { category: product.categoryName } : {}),
     ...(product.reviewCount > 0
       ? {

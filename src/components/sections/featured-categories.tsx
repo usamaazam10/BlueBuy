@@ -44,12 +44,13 @@ export function FeaturedCategories() {
   }, [allCategories, homepage?.featuredCategoryIds]);
 
   return (
-    <section className="py-20 sm:py-24">
+    // `id` anchors the footer/hero "Explore categories" links.
+    <section id="categories" className="scroll-mt-24 py-20 sm:py-24">
       <Container>
         <SectionTitle
           eyebrow="Browse"
           title="Shop by category"
-          description="Find exactly what you need across our curated collections."
+          description="Find what you need across the categories in our catalogue."
         />
 
         {isLoading ? (

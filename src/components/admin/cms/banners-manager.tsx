@@ -67,7 +67,7 @@ export function BannersManager() {
               id="banner-message"
               value={draft.message}
               onChange={(e) => set({ message: e.target.value })}
-              placeholder="Free shipping on orders over $50 — this week only."
+              placeholder="New products just added to the catalogue."
               className="min-h-16"
             />
           </Field>

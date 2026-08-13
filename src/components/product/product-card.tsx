@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import type { StoreProduct } from '@/types/store';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/hooks/use-currency';
+import { productBrandLabel } from '@/lib/collection';
 import { Badge } from '@/components/ui/badge';
 import { Rating } from './rating';
 import { ProductImage } from './product-image';
@@ -14,7 +15,7 @@ import { AddToCartButton } from './add-to-cart-button';
 const BADGE_VARIANT = {
   Sale: 'sale',
   New: 'new',
-  Bestseller: 'bestseller',
+  Featured: 'featured',
   Limited: 'limited',
 } as const;
 
@@ -72,6 +73,8 @@ function ProductCardImpl({ product, className }: ProductCardProps) {
               {product.title}
             </Link>
           </h3>
+          {/* Brand, or the BlueBuy Collection for products we source ourselves. */}
+          <span className="text-muted-foreground text-xs">{productBrandLabel(product)}</span>
         </div>
 
         <Rating value={product.rating} reviewCount={product.reviewCount} />

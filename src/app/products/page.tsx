@@ -6,7 +6,8 @@ import { absoluteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Products',
-  description: 'Browse the full BlueBuy collection of premium audio, wearables, displays and more.',
+  description:
+    'Browse every product in the BlueBuy catalogue — filter by category or brand, or shop the BlueBuy Collection.',
   alternates: { canonical: absoluteUrl('/products/') },
 };
 
@@ -14,10 +15,10 @@ export default function ProductsPage() {
   return (
     <Container className="py-12 sm:py-16">
       <header className="mb-10 flex max-w-2xl flex-col gap-3">
-        <span className="text-brand text-sm font-semibold tracking-wide uppercase">Collection</span>
+        <span className="text-brand text-sm font-semibold tracking-wide uppercase">Shop</span>
         <h1 className="text-4xl font-semibold sm:text-5xl">All products</h1>
         <p className="text-muted-foreground text-lg">
-          A carefully chosen collection, engineered to fit seamlessly into your everyday.
+          Search the catalogue, or narrow it down by category and brand.
         </p>
       </header>
 
