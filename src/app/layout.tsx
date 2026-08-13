@@ -5,7 +5,7 @@ import { QueryProvider } from '@/components/providers/query-provider';
 import { CartProvider } from '@/context/cart-context';
 import { SiteChrome } from '@/components/layout/site-chrome';
 import { SITE_CONFIG, BRAND_ASSETS } from '@/constants/site';
-import { getSiteSettings } from '@/lib/server/catalog';
+import { getSiteSettings, getCmsContent } from '@/lib/server/catalog';
 import { env } from '@/lib/env';
 import '@/styles/globals.css';
 
@@ -67,8 +67,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Read once at build time (memoised across the whole export) and seeded into
-  // React Query below, so prerendered pages carry the store's real settings.
-  const siteSettings = await getSiteSettings();
+  // React Query below, so prerendered pages carry the store's real settings and
+  // CMS copy rather than the defaults — no hydration swap, and crawlers see the
+  // real hero/footer.
+  const [siteSettings, cms] = await Promise.all([getSiteSettings(), getCmsContent()]);
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -82,7 +84,15 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <QueryProvider initialSiteSettings={siteSettings}>
+          <QueryProvider
+            initialSiteSettings={siteSettings}
+            initialHomepage={cms.homepage}
+            initialFooter={cms.footer}
+            initialContact={cms.contact}
+            initialNavigation={cms.navigation}
+            initialSocialLinks={cms.socialLinks}
+            initialBanners={cms.banners}
+          >
             <CartProvider>
               <SiteChrome>{children}</SiteChrome>
             </CartProvider>

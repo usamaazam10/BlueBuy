@@ -14,7 +14,15 @@
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/keys';
-import type { SiteSettings } from '@/types/cms';
+import type {
+  SiteSettings,
+  Homepage,
+  Footer,
+  ContactInformation,
+  NavItem,
+  SocialLink,
+  Banner,
+} from '@/types/cms';
 
 /** Errors that will never succeed on retry (permissions, missing data, etc.). */
 const NON_RETRYABLE = new Set([
@@ -59,23 +67,48 @@ function makeQueryClient(): QueryClient {
 interface QueryProviderProps {
   children: React.ReactNode;
   /**
-   * `site_settings` read at build time by the root layout. Seeding these means
-   * prerendered HTML carries the store's real currency (and the client's first
-   * render matches it), instead of painting the built-in defaults and
-   * correcting after Firestore responds.
+   * CMS singletons read at build time by the root layout.
+   *
+   * Seeding these means prerendered HTML carries the store's real currency,
+   * branding and copy — and the client's first render matches it — instead of
+   * painting the built-in defaults and visibly correcting them once Firestore
+   * responds. Anything omitted (or `null`, when Firestore was unreachable at
+   * build time) simply falls back to the model defaults as before.
    */
   initialSiteSettings?: SiteSettings | null;
+  initialHomepage?: Homepage | null;
+  initialFooter?: Footer | null;
+  initialContact?: ContactInformation | null;
+  initialNavigation?: NavItem[] | null;
+  initialSocialLinks?: SocialLink[] | null;
+  initialBanners?: Banner[] | null;
 }
 
-export function QueryProvider({ children, initialSiteSettings }: QueryProviderProps) {
+export function QueryProvider({
+  children,
+  initialSiteSettings,
+  initialHomepage,
+  initialFooter,
+  initialContact,
+  initialNavigation,
+  initialSocialLinks,
+  initialBanners,
+}: QueryProviderProps) {
   const [queryClient] = React.useState(() => {
     const client = makeQueryClient();
-    if (initialSiteSettings) {
-      // `updatedAt: 0` marks the build-time snapshot as already stale, so the
-      // browser refetches immediately on mount. The baked values only ever own
-      // the first paint — a CMS change still lands without a rebuild.
-      client.setQueryData(queryKeys.siteSettings, initialSiteSettings, { updatedAt: 0 });
-    }
+    // `updatedAt: 0` marks each build-time snapshot as already stale, so the
+    // browser refetches immediately on mount. The baked values only ever own the
+    // first paint — a CMS change still lands without a rebuild.
+    const seed = <T,>(key: readonly unknown[], value: T | null | undefined) => {
+      if (value) client.setQueryData(key, value, { updatedAt: 0 });
+    };
+    seed(queryKeys.siteSettings, initialSiteSettings);
+    seed(queryKeys.homepage, initialHomepage);
+    seed(queryKeys.footer, initialFooter);
+    seed(queryKeys.contactInformation, initialContact);
+    seed(queryKeys.navigation, initialNavigation);
+    seed(queryKeys.socialLinks, initialSocialLinks);
+    seed(queryKeys.banners, initialBanners);
     return client;
   });
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
