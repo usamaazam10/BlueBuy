@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldAlert, TriangleAlert } from 'lucide-react';
-import { useAuth, hasRole, type Role } from '@/lib/auth';
+import { useAuth, hasRole, can, type Permission, type Role } from '@/lib/auth';
 import { Logo } from '@/components/common/logo';
 
 /** Centered full-height frame used by every gate state. */
@@ -60,6 +60,13 @@ export interface ProtectedRouteProps {
    * requirement (see `hasRole`).
    */
   requiredRole?: Role;
+  /**
+   * Capability required to view the children — the preferred check for
+   * operational roles, which are peers rather than ranks (see
+   * `@/lib/auth/permissions`). When both this and `requiredRole` are given, the
+   * user must satisfy both.
+   */
+  requiredPermission?: Permission;
 }
 
 /**
@@ -74,7 +81,11 @@ export interface ProtectedRouteProps {
  * This is a UX gate, not a security boundary. Real enforcement of *data* access
  * must live in Firebase Security Rules / custom claims, never in client state.
  */
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requiredRole,
+  requiredPermission,
+}: ProtectedRouteProps) {
   const { user, loading, configured, configError } = useAuth();
   const router = useRouter();
 
@@ -98,6 +109,10 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (requiredRole && !hasRole(user.role, requiredRole)) {
+    return <Unauthorized />;
+  }
+
+  if (requiredPermission && !can(user.role, requiredPermission)) {
     return <Unauthorized />;
   }
 

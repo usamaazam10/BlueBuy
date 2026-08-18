@@ -12,3 +12,4 @@ export * from './order.schema';
 export * from './cms.schema';
 export * from './contact.schema';
 export * from './orphaned-asset.schema';
+export * from './business.schema';

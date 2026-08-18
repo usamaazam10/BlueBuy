@@ -16,6 +16,7 @@ import { ProductGrid } from '@/components/product/product-grid';
 import { SectionTitle } from '@/components/common/section-title';
 import { TrustSignals } from '@/components/common/trust-signals';
 import { BLUEBUY_COLLECTION, isCollectionProduct } from '@/lib/collection';
+import { track } from '@/lib/analytics/tracker';
 
 const BADGE_VARIANT = {
   Sale: 'sale',
@@ -55,6 +56,21 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
     );
     return [...sameCategory, ...others].slice(0, 4);
   }, [data, product, initialRelated]);
+
+  // Records one product view per product per mount. Keyed on the id so
+  // navigating between products tracks each, while a re-render does not.
+  const viewedId = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!product?.id || viewedId.current === product.id) return;
+    viewedId.current = product.id;
+    track('product_view', {
+      productId: product.id,
+      productTitle: product.title,
+      categoryId: product.categoryId,
+      brandId: product.brandId,
+      value: product.price,
+    });
+  }, [product?.id, product?.title, product?.categoryId, product?.brandId, product?.price]);
 
   const outOfStock = product.stock <= 0;
   const lowStock = product.stock > 0 && product.stock <= 5;

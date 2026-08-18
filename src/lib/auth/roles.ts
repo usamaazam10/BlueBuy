@@ -13,8 +13,27 @@
  * AUTHENTICATION.md for the full runbook (first admin, assign/remove, staff).
  */
 
-/** Known roles, ordered from most to least privileged. */
-export const ROLES = ['admin', 'editor', 'viewer'] as const;
+/**
+ * Known roles.
+ *
+ * `admin`, `editor` and `viewer` are the original three and keep their exact
+ * meaning — an existing user carrying `role: 'admin'` is unaffected by the
+ * operational roles added alongside them.
+ *
+ * The operational roles (`inventory_manager`, `sales_manager`, `operations`) are
+ * **peers**, not rungs on a ladder: they grant different access, and neither
+ * outranks the other. Because of that, what a role may do is defined by the
+ * capability matrix in `./permissions`, not by the rank below.
+ */
+export const ROLES = [
+  'owner',
+  'admin',
+  'inventory_manager',
+  'sales_manager',
+  'operations',
+  'editor',
+  'viewer',
+] as const;
 
 export type Role = (typeof ROLES)[number];
 
@@ -27,9 +46,21 @@ export type Role = (typeof ROLES)[number];
  */
 export const DEFAULT_ROLE: Role = 'viewer';
 
-/** Privilege ranking — higher number means more access. */
+/**
+ * Privilege ranking, retained for the original hierarchy.
+ *
+ * The operational roles are peers and cannot be honestly ordered against
+ * `editor`, so they all sit at the same rung above `viewer`. Do not use this to
+ * gate operational features — use `can()` from `./permissions`, which is what
+ * the specialised roles were introduced for. This exists so existing
+ * `hasRole(role, 'admin')` checks keep behaving exactly as they always have.
+ */
 const ROLE_RANK: Record<Role, number> = {
+  owner: 4,
   admin: 3,
+  inventory_manager: 2,
+  sales_manager: 2,
+  operations: 2,
   editor: 2,
   viewer: 1,
 };

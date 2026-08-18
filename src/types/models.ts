@@ -48,6 +48,23 @@ export const COLLECTIONS = {
   // ── Operations ──
   // Ledger of Cloudinary assets whose owning document was deleted (see below).
   orphanedAssets: 'orphaned_assets',
+
+  // ── Business operations (see `@/types/business`) ──
+  // Procurement:
+  suppliers: 'suppliers',
+  purchaseOrders: 'purchase_orders',
+  purchaseReceipts: 'purchase_receipts',
+  // Inventory ledger:
+  inventoryMovements: 'inventory_movements',
+  // Money:
+  expenses: 'expenses',
+  expenseCategories: 'expense_categories',
+  cashTransactions: 'cash_transactions',
+  // Storefront commerce analytics:
+  analyticsEvents: 'analytics_events',
+  analyticsDaily: 'analytics_daily',
+  // Audit trail:
+  auditLogs: 'audit_logs',
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
@@ -126,6 +143,36 @@ export interface Product extends BaseDocument {
   /** Denormalised review count, kept in sync when reviews change. */
   reviewCount: number;
   stock: number;
+  /**
+   * Manually entered purchase cost, used as the cost basis until the product has
+   * been received on a purchase order. `null` means "no cost recorded" — which
+   * is reported as *insufficient cost data*, never as a cost of zero.
+   *
+   * Optional so documents written before the business-operations upgrade keep
+   * validating; readers treat a missing field as `null` (see `costBasis()` in
+   * `@/lib/business/costing`).
+   */
+  costPrice?: number | null;
+  /**
+   * Weighted-average unit cost, maintained by purchase receipts. This — not
+   * {@link costPrice} — is the authoritative cost basis once goods have been
+   * received. See `@/lib/business/costing` and BUSINESS_OPERATIONS.md § COGS.
+   */
+  averageCost?: number | null;
+  /** Unit cost on the most recent receipt; informational only. */
+  lastPurchaseCost?: number | null;
+  /**
+   * Stock level at which the product should be re-ordered. 0 disables it.
+   *
+   * NB: *reserved* and *available* quantities are deliberately NOT stored here.
+   * Checkout decrements `stock` at order placement, so `stock` already IS the
+   * available-to-sell figure; units committed to unshipped orders are derived
+   * from those orders (see `reservedUnits` in `@/lib/business/inventory`).
+   * Storing either would create a second source of truth that drifts.
+   */
+  reorderLevel?: number;
+  /** Per-product low-stock threshold; falls back to `LOW_STOCK_THRESHOLD`. */
+  lowStockThreshold?: number | null;
   /** Free-form tags for search/filtering. */
   tags: string[];
   /** Technical specification rows (label/value pairs). */

@@ -13,6 +13,7 @@
  * The collection name lives in `COLLECTIONS.orders` (`@/types/models`).
  */
 import type { FirestoreDate } from '@/types/models';
+import type { OrderCosting, OrderDelivery } from '@/types/business';
 
 /**
  * Order lifecycle states, in fulfilment order. `cancelled` is a terminal state
@@ -20,16 +21,55 @@ import type { FirestoreDate } from '@/types/models';
  * allowed transitions and `@/lib/order/status` for labels/metadata.
  */
 export type OrderStatus =
-  'pending' | 'confirmed' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'packed'
+  | 'ready_for_dispatch'
+  | 'shipped'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'delivery_failed'
+  | 'returned'
+  | 'cancelled';
 
 /** All statuses in display order. */
 export const ORDER_STATUSES: readonly OrderStatus[] = [
   'pending',
   'confirmed',
+  'processing',
   'packed',
+  'ready_for_dispatch',
   'shipped',
+  'out_for_delivery',
   'delivered',
+  'delivery_failed',
+  'returned',
   'cancelled',
+];
+
+/**
+ * Statuses that mean the order is finished and no longer consuming operational
+ * attention. Used by the delivery dashboard's "awaiting fulfilment" counts.
+ */
+export const CLOSED_ORDER_STATUSES: readonly OrderStatus[] = ['delivered', 'returned', 'cancelled'];
+
+/**
+ * Statuses that do NOT represent realised revenue. Sales reporting excludes
+ * these so a cancelled or returned order never inflates the numbers.
+ */
+export const NON_REVENUE_ORDER_STATUSES: readonly OrderStatus[] = ['cancelled', 'returned'];
+
+/**
+ * Statuses whose stock is still "out" of the warehouse and committed to the
+ * customer. Used to derive reserved vs. available stock.
+ */
+export const RESERVING_ORDER_STATUSES: readonly OrderStatus[] = [
+  'pending',
+  'confirmed',
+  'processing',
+  'packed',
+  'ready_for_dispatch',
 ];
 
 /** Status a freshly-placed order starts in. */
@@ -42,10 +82,18 @@ export const INITIAL_ORDER_STATUS: OrderStatus = 'pending';
  */
 export const ORDER_STATUS_FLOW: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['packed', 'cancelled'],
-  packed: ['shipped', 'cancelled'],
-  shipped: ['delivered', 'cancelled'],
-  delivered: [],
+  // `confirmed → packed` and `packed → shipped` are kept alongside the newer,
+  // finer-grained steps so orders placed before the fulfilment upgrade (and
+  // operators who don't need every stage) can still move straight through.
+  confirmed: ['processing', 'packed', 'cancelled'],
+  processing: ['packed', 'cancelled'],
+  packed: ['ready_for_dispatch', 'shipped', 'cancelled'],
+  ready_for_dispatch: ['shipped', 'cancelled'],
+  shipped: ['out_for_delivery', 'delivered', 'delivery_failed'],
+  out_for_delivery: ['delivered', 'delivery_failed'],
+  delivered: ['returned'],
+  delivery_failed: ['out_for_delivery', 'returned', 'cancelled'],
+  returned: [],
   cancelled: [],
 };
 
@@ -115,6 +163,34 @@ export interface Order {
   /** ISO 4217 currency code, e.g. "USD". */
   currency: string;
   status: OrderStatus;
+  /**
+   * COGS snapshot, captured by an admin (never by the storefront — customers
+   * must not be able to read or write cost data). Absent until captured, in
+   * which case the order's profit reads as "insufficient cost data" rather than
+   * as a fabricated number. Once written it is never recomputed, so historical
+   * margin survives later purchase-cost changes.
+   */
+  costing?: OrderCosting;
+  /** Courier / fulfilment tracking, maintained by the admin. */
+  delivery?: OrderDelivery;
+  /**
+   * True once the order's stock has been returned to inventory (after a
+   * cancellation or a return). Guards against restocking the same order twice.
+   */
+  inventoryRestored?: boolean;
+  /**
+   * True once `sale` movements have been appended to the inventory ledger for
+   * this order.
+   *
+   * Checkout decrements stock from an *unauthenticated* browser, and the ledger
+   * is not writable anonymously — deliberately, so the public storefront has no
+   * write access to business records. The sale movements are therefore appended
+   * by an admin action (capturing costs, or the reconcile tool on the inventory
+   * page). This flag makes that append idempotent.
+   */
+  saleMovementsRecorded?: boolean;
+  /** Refunded amount, when money was actually returned to the customer. */
+  refundedAmount?: number;
   createdAt: FirestoreDate;
   updatedAt: FirestoreDate;
 }

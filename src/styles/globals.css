@@ -31,6 +31,11 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-muted: var(--brand-muted);
 
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-grid: var(--chart-grid);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -66,9 +71,38 @@
   --brand: oklch(0.55 0.2 262);
   --brand-foreground: oklch(0.985 0.005 262);
   --brand-muted: oklch(0.96 0.03 262);
+
+  /* ── Chart series colours (admin business dashboards) ──────────────────
+     A fixed categorical order — slot 1 is always the primary measure, slot 2
+     always the opposing one (cost, money out). Hues are assigned by position
+     and never cycled, so a filter that removes a series never repaints the
+     survivors.
+
+     These three slots are validated for colour-vision deficiency and for
+     normal-vision separation against both surfaces (all-pairs), so they may be
+     used together in any chart form. A fourth series is NOT added here: past
+     three the pairs stop clearing the separation floors — fold the remainder
+     into "Other" or facet the chart instead.
+
+     --chart-3 sits just under 3:1 against the light surface, so every chart
+     using it must also carry visible labels or an accompanying table. The
+     business dashboards pair every chart with a breakdown table, which
+     satisfies that. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  /* Recessive grid lines — deliberately weaker than --border. */
+  --chart-grid: oklch(0.929 0.013 255.508);
 }
 
 .dark {
+  /* Dark steps of the same three hues, chosen for the dark surface and
+     validated as a set — not an automatic lightening of the light values. */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-grid: oklch(0.3 0.03 260);
+
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);

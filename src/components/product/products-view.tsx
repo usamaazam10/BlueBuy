@@ -7,6 +7,7 @@ import { useStoreProducts, useStoreCategories, useStoreBrands } from '@/hooks/qu
 import type { StoreProduct } from '@/types/store';
 import { BLUEBUY_COLLECTION, isCollectionProduct, isOwnLabelBrand } from '@/lib/collection';
 import { cn } from '@/lib/utils';
+import { track } from '@/lib/analytics/tracker';
 import { ProductGrid } from './product-grid';
 import { ProductGridSkeleton } from './product-grid-skeleton';
 import { ErrorState } from '@/components/common/error-state';
@@ -97,6 +98,41 @@ export function ProductsView() {
     });
     return sortProducts(matched, sort);
   }, [products, brands, category, brand, search, sort]);
+
+  // ── Analytics ────────────────────────────────────────────────────────────
+  // Search filters live as the visitor types, so the term is tracked only after
+  // they pause. Without the debounce this would write one Firestore document
+  // per keystroke — expensive, and it would fill the search report with the
+  // prefixes of every word rather than what was actually searched for.
+  const trackedSearch = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const term = search.trim();
+    if (term.length < 2) return;
+
+    const timer = setTimeout(() => {
+      if (trackedSearch.current === term) return;
+      trackedSearch.current = term;
+      // `filtered` is what the visitor is actually looking at, so a zero here is
+      // a genuine "we had nothing for them" — the most useful row in the report.
+      track('search', { searchTerm: term, resultCount: filtered.length });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [search, filtered.length]);
+
+  // A category or brand filter is this storefront's equivalent of a category
+  // page, so it is recorded as a view of that category/brand.
+  React.useEffect(() => {
+    if (category === 'all') return;
+    const matched = categories.find((entry) => entry.slug === category);
+    track('category_view', { categoryId: matched?.id ?? category });
+  }, [category, categories]);
+
+  React.useEffect(() => {
+    if (brand === 'all' || brand === BLUEBUY_COLLECTION.slug) return;
+    const matched = brands.find((entry) => entry.slug === brand || entry.id === brand);
+    track('brand_view', { brandId: matched?.id ?? brand });
+  }, [brand, brands]);
 
   return (
     <div className="flex flex-col gap-8">

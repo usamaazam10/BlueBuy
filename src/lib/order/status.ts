@@ -28,9 +28,19 @@ export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
     description: 'Order confirmed and queued for packing.',
     tone: 'sky',
   },
+  processing: {
+    label: 'Processing',
+    description: 'Being picked and prepared.',
+    tone: 'sky',
+  },
   packed: {
     label: 'Packed',
     description: 'Items packed and ready to ship.',
+    tone: 'violet',
+  },
+  ready_for_dispatch: {
+    label: 'Ready for dispatch',
+    description: 'Waiting for the courier to collect.',
     tone: 'violet',
   },
   shipped: {
@@ -38,10 +48,25 @@ export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
     description: 'Handed to the courier and on its way.',
     tone: 'indigo',
   },
+  out_for_delivery: {
+    label: 'Out for delivery',
+    description: 'With the rider for final delivery.',
+    tone: 'indigo',
+  },
   delivered: {
     label: 'Delivered',
     description: 'Delivered to the customer.',
     tone: 'emerald',
+  },
+  delivery_failed: {
+    label: 'Delivery failed',
+    description: 'Delivery attempt was unsuccessful.',
+    tone: 'rose',
+  },
+  returned: {
+    label: 'Returned',
+    description: 'Goods came back from the customer.',
+    tone: 'rose',
   },
   cancelled: {
     label: 'Cancelled',

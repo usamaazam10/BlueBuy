@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { ADMIN_NAV, ADMIN_NAV_SECTIONS } from '@/data/admin/nav';
+import { useAuth, can } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 /** Determines whether a nav item is the active route. */
@@ -25,6 +26,8 @@ export function Sidebar({
   showBrand?: boolean;
 }) {
   const pathname = usePathname() ?? '';
+  const { user } = useAuth();
+  const role = user?.role ?? 'viewer';
 
   return (
     <div className="flex h-full flex-col">
@@ -44,7 +47,12 @@ export function Sidebar({
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-2" aria-label="Admin">
         {ADMIN_NAV_SECTIONS.map((section) => {
-          const items = ADMIN_NAV.filter((item) => item.section === section);
+          const items = ADMIN_NAV.filter(
+            (item) => item.section === section && (!item.permission || can(role, item.permission))
+          );
+          // A section whose every item is hidden by permission renders nothing
+          // rather than an empty heading.
+          if (items.length === 0) return null;
           return (
             <div key={section} className="mb-4">
               <p className="text-muted-foreground px-3 pb-1.5 text-[11px] font-medium tracking-wider uppercase">

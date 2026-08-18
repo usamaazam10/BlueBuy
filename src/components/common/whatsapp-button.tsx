@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useStoreProducts } from '@/hooks/queries';
 import { buildProductMessage, useWhatsApp } from '@/hooks/use-whatsapp';
+import { track } from '@/lib/analytics/tracker';
 
 /** Official WhatsApp brand green — intentionally literal, not a design token. */
 const WHATSAPP_GREEN = '#25D366';
@@ -55,6 +56,13 @@ export function WhatsAppButton() {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      // Fire-and-forget, so it never delays opening WhatsApp.
+      onClick={() =>
+        track('whatsapp_click', {
+          productId: product?.id,
+          productTitle: product?.title,
+        })
+      }
       aria-label={
         product ? `Ask about ${product.title} on WhatsApp` : 'Chat with BlueBuy support on WhatsApp'
       }

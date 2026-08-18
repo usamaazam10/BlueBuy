@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { ProductMedia } from '@/components/product/product-media';
 import { DataTable, type Column, type SortState } from '@/components/admin/ui/data-table';
 import { Input, Select } from '@/components/admin/ui/control';
+import { ExportButton } from '@/components/admin/business/export-button';
+import { costBasis, inventoryValue } from '@/lib/business';
+import { useAuth, can } from '@/lib/auth';
 import { StatusBadge, StockBadge } from '@/components/admin/ui/status-badge';
 import { EmptyState } from '@/components/admin/ui/empty-state';
 import { Pagination } from '@/components/admin/ui/pagination';
@@ -100,6 +103,11 @@ function sortValue(
 }
 
 export function ProductsBrowser() {
+  const { user } = useAuth();
+  // Cost is a separate permission from the catalogue itself — a role that may
+  // edit products doesn't automatically get to see what they cost.
+  const showCost = can(user?.role ?? 'viewer', 'finance.view');
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -139,6 +147,10 @@ export function ProductsBrowser() {
   const [page, setPage] = React.useState(1);
   const [toDelete, setToDelete] = React.useState<ProductRow | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  // The table renders a view model, but the CSV export needs each product's
+  // cost fields, which the view model deliberately doesn't carry. Keep the raw
+  // documents indexed alongside rather than re-fetching them.
+  const [productById, setProductById] = React.useState<Map<string, Product>>(new Map());
 
   // Load products from Firestore (via the repository — never Firestore directly).
   React.useEffect(() => {
@@ -149,6 +161,7 @@ export function ProductsBrowser() {
       .then((list) => {
         if (!active) return;
         setProducts(list.map(toRow));
+        setProductById(new Map(list.map((product) => [product.id, product])));
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -434,6 +447,41 @@ export function ProductsBrowser() {
             <option value="stock-asc">Stock: Low to High</option>
           </Select>
         </div>
+
+        {/* Exports the current filtered view. The rows are the table's view
+            model, so cost is looked up from the underlying product — and only
+            for roles that may see cost data. */}
+        <ExportButton
+          kind="products"
+          getRows={() => filtered}
+          columns={[
+            { header: 'Title', value: (row) => row.title },
+            { header: 'Slug', value: (row) => row.slug },
+            { header: 'Status', value: (row) => row.status },
+            { header: 'Price', value: (row) => row.price },
+            { header: 'Compare at', value: (row) => row.compareAtPrice ?? '' },
+            { header: 'Stock', value: (row) => row.stock },
+            ...(showCost
+              ? [
+                  {
+                    header: 'Unit cost',
+                    value: (row: ProductRow) => {
+                      const product = productById.get(row.id);
+                      return product ? (costBasis(product)?.unitCost ?? '') : '';
+                    },
+                  },
+                  {
+                    header: 'Stock value',
+                    value: (row: ProductRow) => {
+                      const product = productById.get(row.id);
+                      return product ? (inventoryValue(product) ?? '') : '';
+                    },
+                  },
+                ]
+              : []),
+            { header: 'Featured', value: (row) => (row.featured ? 'Yes' : 'No') },
+          ]}
+        />
       </div>
 
       {hasFilters && (

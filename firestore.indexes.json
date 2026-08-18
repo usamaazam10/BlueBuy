@@ -1,5 +1,5 @@
 {
-  "//": "Composite indexes for BlueBuy. Deploy with: firebase deploy --only firestore:indexes. The storefront's hot paths (listActive, orders list) use single-field/auto indexes and need nothing here. These cover ProductRepository.list()'s equality-filter + orderBy('createdAt') combinations so admin filtering is index-ready. Firestore also prints an exact index-creation link at runtime for any query that is missing one.",
+  "//": "Composite indexes for BlueBuy. Deploy with: firebase deploy --only firestore:indexes. Single-field and 'range + orderBy on the SAME field' queries (e.g. expenses by incurredAt, movements by occurredAt) run on Firestore's automatic indexes and need nothing here — only queries that combine an equality filter with an orderBy on a different field do. Firestore also prints an exact index-creation link at runtime for any query that is missing one.",
   "indexes": [
     {
       "collectionGroup": "products",
@@ -31,6 +31,53 @@
       "fields": [
         { "fieldPath": "featured", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
+    {
+      "//": "InventoryMovementRepository.listForProduct — one product's full ledger, newest first.",
+      "collectionGroup": "inventory_movements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "productId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "PurchaseRepository.listBySupplier — a supplier's purchase history.",
+      "collectionGroup": "purchase_orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "supplierId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "CashRepository.listForReference — payments recorded against one order or purchase order.",
+      "collectionGroup": "cash_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reference.kind", "order": "ASCENDING" },
+        { "fieldPath": "reference.id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "AuditLogRepository.listForEntity — the change history shown on a single record.",
+      "collectionGroup": "audit_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "entity", "order": "ASCENDING" },
+        { "fieldPath": "entityId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "Analytics rollups by day (reserved for the analytics phase).",
+      "collectionGroup": "analytics_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dayKey", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" }
       ]
     }
   ],

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertCircle, ArrowLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { usePlaceOrder } from '@/hooks/queries';
+import { track } from '@/lib/analytics/tracker';
 import { useCurrency } from '@/hooks/use-currency';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,16 @@ export function CheckoutView() {
   // Totals include shipping (the cart itself is subtotal-only).
   const totals = React.useMemo(() => calculateTotals(items, CHECKOUT_PRICING_CONFIG), [items]);
 
+  // Checkout was reached with a real cart — the funnel's "checkout started"
+  // stage. Fired once per mount, and only after the cart has hydrated, so a
+  // page refresh on an empty cart isn't miscounted as an intent to buy.
+  const startedTracked = React.useRef(false);
+  React.useEffect(() => {
+    if (!hydrated || isEmpty || startedTracked.current) return;
+    startedTracked.current = true;
+    track('checkout_started', { quantity: items.length, value: totals.total });
+  }, [hydrated, isEmpty, items.length, totals.total]);
+
   const setField = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     // Clear a field's error as the user corrects it.
@@ -117,6 +128,9 @@ export function CheckoutView() {
       // Stamp the store's current currency so the order is a faithful record of
       // what the customer was quoted, even if the setting changes later.
       const order = await placeOrder.mutateAsync({ customer: parsed.data, items, currency });
+      // Tracked before `clear()`, which empties `items`. Carries only the order
+      // value and line count — never the customer's details.
+      track('checkout_completed', { quantity: items.length, value: order.total });
       clear();
       setPlacedOrder(order);
       // Scroll to top so the success screen is in view.

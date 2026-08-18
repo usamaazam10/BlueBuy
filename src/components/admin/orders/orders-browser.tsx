@@ -8,7 +8,9 @@ import { Input, Select } from '@/components/admin/ui/control';
 import { EmptyState } from '@/components/admin/ui/empty-state';
 import { Pagination } from '@/components/admin/ui/pagination';
 import { useToast } from '@/components/ui/toast';
-import { useOrdersQuery, useUpdateOrderStatus } from '@/hooks/queries';
+import { useOrdersQuery, useFulfilOrderStatus } from '@/hooks/queries';
+import { ExportButton } from '@/components/admin/business/export-button';
+import { formatDate } from '@/lib/business';
 import { ORDER_STATUSES, type Order, type OrderStatus } from '@/types/order';
 import { orderStatusLabel } from '@/lib/order/status';
 import { toAppError } from '@/firebase';
@@ -83,7 +85,7 @@ function sortValue(order: Order, key: string): string | number {
 export function OrdersBrowser() {
   const toast = useToast();
   const { data: orders, isLoading, isError, error, refetch } = useOrdersQuery();
-  const updateStatus = useUpdateOrderStatus();
+  const updateStatus = useFulfilOrderStatus();
   const { formatPrice } = useCurrency();
 
   const [search, setSearch] = React.useState('');
@@ -141,11 +143,23 @@ export function OrdersBrowser() {
   };
 
   function handleUpdateStatus(order: Order, next: OrderStatus) {
+    // Goes through the fulfilment service rather than a bare status write:
+    // cancelling or returning an order must also return its items to stock
+    // (checkout removed them at placement) and record the inventory movement
+    // and audit entry. The restore is idempotent, so a repeated cancel can't
+    // inflate stock. See BUSINESS_OPERATIONS.md § Inventory ledger.
     updateStatus.mutate(
       { id: order.id, status: next },
       {
-        onSuccess: () =>
-          toast.success('Status updated', `${order.orderId} is now ${orderStatusLabel(next)}.`),
+        onSuccess: () => {
+          const restocked = next === 'cancelled' || next === 'returned';
+          toast.success(
+            'Status updated',
+            `${order.orderId} is now ${orderStatusLabel(next)}.${
+              restocked ? ' Its items were returned to stock.' : ''
+            }`
+          );
+        },
         onError: (err) => toast.error('Update failed', toAppError(err).message),
       }
     );
@@ -272,6 +286,30 @@ export function OrdersBrowser() {
             <option value="total-asc">Total: Low to High</option>
           </Select>
         </div>
+
+        {/* Exports exactly what the current filters and sort produced, not the
+            whole collection — what you see is what you get. */}
+        <ExportButton
+          kind="orders"
+          getRows={() => filtered}
+          columns={[
+            { header: 'Order', value: (o) => o.orderId },
+            { header: 'Placed', value: (o) => formatDate(o.createdAt) },
+            { header: 'Status', value: (o) => orderStatusLabel(o.status) },
+            { header: 'Customer', value: (o) => o.customer.fullName },
+            { header: 'City', value: (o) => o.customer.city },
+            { header: 'Items', value: (o) => o.items.length },
+            { header: 'Units', value: (o) => o.items.reduce((n, i) => n + i.quantity, 0) },
+            { header: 'Subtotal', value: (o) => o.subtotal },
+            { header: 'Discount', value: (o) => o.discount },
+            { header: 'Shipping', value: (o) => o.shipping },
+            { header: 'Total', value: (o) => o.total },
+            { header: 'Refunded', value: (o) => o.refundedAmount ?? '' },
+            { header: 'Currency', value: (o) => o.currency },
+            { header: 'Courier', value: (o) => o.delivery?.courier ?? '' },
+            { header: 'Tracking', value: (o) => o.delivery?.trackingNumber ?? '' },
+          ]}
+        />
       </div>
 
       {hasFilters && (

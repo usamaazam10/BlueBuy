@@ -8,9 +8,19 @@
 //   npm install firebase-admin
 //
 // Usage:
-//   node scripts/set-role.cjs <email> admin     # grant admin
-//   node scripts/set-role.cjs <email> viewer    # demote to viewer (removes admin)
-//   node scripts/set-role.cjs <email> --clear   # remove all role claims
+//   node scripts/set-role.cjs <email> owner              # full access, incl. finance
+//   node scripts/set-role.cjs <email> admin              # full access
+//   node scripts/set-role.cjs <email> inventory_manager  # stock, suppliers, purchase costs
+//   node scripts/set-role.cjs <email> sales_manager      # orders, customers, sales analytics
+//   node scripts/set-role.cjs <email> operations         # fulfilment only, no financial data
+//   node scripts/set-role.cjs <email> viewer             # no dashboard access
+//   node scripts/set-role.cjs <email> --clear            # remove all role claims
+//
+// What each role may do is defined in src/lib/auth/permissions.ts (the UI) and
+// enforced in firestore.rules (the real boundary). Keep the two in step.
+//
+// NOTE: a role change takes effect when the user's ID token refreshes — they
+// should sign out and back in, or wait up to an hour.
 
 const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
@@ -18,7 +28,17 @@ const { getAuth } = require('firebase-admin/auth');
 initializeApp({ credential: applicationDefault() }); // uses GOOGLE_APPLICATION_CREDENTIALS
 
 const [email, role] = process.argv.slice(2);
-const VALID = ['admin', 'editor', 'viewer'];
+// Mirrors ROLES in src/lib/auth/roles.ts. `editor` is retained so an existing
+// claim can still be cleared, but it grants no access — see permissions.ts.
+const VALID = [
+  'owner',
+  'admin',
+  'inventory_manager',
+  'sales_manager',
+  'operations',
+  'editor',
+  'viewer',
+];
 
 (async () => {
   if (!email || !role) {

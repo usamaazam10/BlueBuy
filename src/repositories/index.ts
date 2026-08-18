@@ -22,6 +22,32 @@ export {
   type OrphanedAssetRepositoryType,
 } from './orphaned-asset.repository';
 
+// ── Business operations ──
+export { SupplierRepository, type SupplierRepositoryType } from './supplier.repository';
+
+export {
+  PurchaseRepository,
+  type PurchaseRepositoryType,
+  type ReceiveResult,
+} from './purchase.repository';
+
+export {
+  InventoryMovementRepository,
+  type InventoryMovementRepositoryType,
+  type AdjustmentResult,
+} from './inventory-movement.repository';
+
+export {
+  ExpenseRepository,
+  ExpenseCategoryRepository,
+  CashRepository,
+  type ExpenseRepositoryType,
+  type ExpenseCategoryRepositoryType,
+  type CashRepositoryType,
+} from './finance.repository';
+
+export { AuditLogRepository, type AuditLogRepositoryType } from './audit-log.repository';
+
 export {
   SiteSettingsRepository,
   HomepageRepository,

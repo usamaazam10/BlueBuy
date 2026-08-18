@@ -1,17 +1,16 @@
-import type { Metadata } from 'next';
-import { Users } from 'lucide-react';
-import { PlaceholderPage } from '@/components/admin/ui/placeholder-page';
+'use client';
 
-export const metadata: Metadata = { title: 'Customers' };
+import { ProtectedRoute } from '@/components/auth/protected-route';
+import { CustomersBrowser } from '@/components/admin/business/customers-browser';
 
+/**
+ * Customer analytics, inferred from guest checkout data — BlueBuy has no
+ * customer accounts, so customers are matched on contact details.
+ */
 export default function CustomersPage() {
   return (
-    <PlaceholderPage
-      title="Customers"
-      description="View and manage customer accounts."
-      icon={Users}
-      breadcrumb={[{ label: 'Admin', href: '/admin' }, { label: 'Customers' }]}
-      comingSoon="Customer profiles, order history and segments will appear here in a future release."
-    />
+    <ProtectedRoute requiredPermission="customers.view">
+      <CustomersBrowser />
+    </ProtectedRoute>
   );
 }

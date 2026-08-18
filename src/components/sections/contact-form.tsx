@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useContactInformation } from '@/hooks/queries';
 import { useWhatsApp } from '@/hooks/use-whatsapp';
 import { contactMessageSchema } from '@/lib/validations';
+import { track } from '@/lib/analytics/tracker';
 
 /** Raw (string) form state. */
 interface FormState {
@@ -88,6 +89,10 @@ export function ContactForm() {
     }
     setErrors({});
     const values = parsed.data;
+
+    // Records that a customer reached out, and through which channel. The
+    // message itself — name, email, body — is never sent to analytics.
+    track('contact_click', { path: `/contact/${channel}` });
 
     // Handoff channels: open the app that will carry the message. We do not
     // claim the message was "sent" — the customer still presses send there.

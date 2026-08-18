@@ -82,6 +82,32 @@ Import via `@/` (→ `src/`). Feature types can live beside their feature; cross
 
 - App singleton in [`src/firebase/app.ts`](src/firebase/app.ts); everything is accessed through lazy getters in [`src/firebase/`](src/firebase/) so importing never triggers init (safe for prerender). [`src/firebase/app-check.ts`](src/firebase/app-check.ts) attaches App Check in the browser and is a no-op until a reCAPTCHA site key is configured.
 
+### Business operations (admin)
+
+The admin also runs the business: procurement, an append-only inventory ledger,
+weighted-average costing, expenses, cash and profit. Two rules matter most when
+touching it:
+
+- **Every financial number comes from [`src/lib/business/`](src/lib/business/)** —
+  pure, unit-tested functions with no Firestore or React dependency. Never
+  recompute a metric in a component; "net sales" must mean one thing everywhere.
+- **Unknown is `null`, not `0`.** A product with no recorded cost has unknown
+  profit. The calculation layer returns `null` and the UI renders "Not enough
+  data" — never a fabricated figure. See [`BUSINESS_OPERATIONS.md`](BUSINESS_OPERATIONS.md).
+
+Stock rises **only** when goods are received (`PurchaseRepository.receive`, one
+transaction); `inventory_movements`, `purchase_receipts`, `cash_transactions` and
+`audit_logs` are append-only and have no update/delete path in code or in rules.
+Admin access is capability-based — use `can(role, permission)` from
+[`@/lib/auth`](src/lib/auth/permissions.ts), not the legacy `hasRole` rank.
+
+**Storefront analytics** ([`src/lib/analytics/tracker.ts`](src/lib/analytics/tracker.ts))
+is fire-and-forget and must stay that way: every write swallows its rejection, so
+a blocked rule or offline visitor can never break add-to-cart. It carries no
+personal data, and `/admin` is excluded so staff browsing isn't counted as
+traffic. Instrument at the single point an action flows through (cart events live
+in `CartProvider`, not on each button).
+
 ### `src/data/` — legacy/support data only
 
 Firestore is the source of truth for products, categories, brands, CMS, and orders. `src/data/admin/` now supplies only non-catalogue bits (e.g. admin nav, `LOW_STOCK_THRESHOLD`). [`ProductMedia`](src/components/product/product-media.tsx) renders deterministic geometric SVG art from a `seed` + `accent` as a fallback when a product has no image.

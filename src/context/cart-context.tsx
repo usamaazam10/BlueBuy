@@ -18,6 +18,7 @@
  * that reads the cart (see `src/app/layout.tsx`).
  */
 import * as React from 'react';
+import { track } from '@/lib/analytics/tracker';
 import type { CartAddable, CartItem, CartTotals, PricingConfig } from '@/types/cart';
 import { calculateTotals, countItems } from '@/lib/cart/pricing';
 import { DEFAULT_PRICING_CONFIG } from '@/lib/cart/config';
@@ -130,6 +131,10 @@ interface CartContextValue {
 
 const CartContext = React.createContext<CartContextValue | null>(null);
 
+// Analytics is imported here (rather than wired into each button) so the funnel
+// can never drift out of sync with what the cart actually did. Every call is
+// fire-and-forget; see `@/lib/analytics/tracker`.
+
 interface CartProviderProps {
   children: React.ReactNode;
   /** Pricing rules (discount/shipping/tax). Defaults to the subtotal-only config. */
@@ -184,8 +189,25 @@ export function CartProvider({ children, config = DEFAULT_PRICING_CONFIG }: Cart
       addItem: (product, quantity = 1, options) => {
         dispatch({ type: 'ADD', item: product, quantity });
         if (options?.openDrawer && product.stock > 0) dispatch({ type: 'OPEN_DRAWER' });
+        // Tracked here rather than at each button, so every route into the cart
+        // (product page, card quick-add, drawer) is covered by one call.
+        track('add_to_cart', {
+          productId: product.id,
+          productTitle: product.title,
+          quantity,
+          value: product.price * quantity,
+        });
       },
-      removeItem: (id) => dispatch({ type: 'REMOVE', id }),
+      removeItem: (id) => {
+        const removed = state.items.find((item) => item.id === id);
+        dispatch({ type: 'REMOVE', id });
+        track('remove_from_cart', {
+          productId: id,
+          productTitle: removed?.title,
+          quantity: removed?.quantity ?? null,
+          value: removed ? removed.unitPrice * removed.quantity : null,
+        });
+      },
       updateQuantity: (id, quantity) => dispatch({ type: 'SET_QUANTITY', id, quantity }),
       clear: () => dispatch({ type: 'CLEAR' }),
       openDrawer: () => dispatch({ type: 'OPEN_DRAWER' }),

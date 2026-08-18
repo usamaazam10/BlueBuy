@@ -16,6 +16,17 @@ export type AppErrorCode =
   | 'unauthenticated'
   | 'unavailable'
   | 'invalid-argument'
+  /**
+   * The request was well-formed but the target's current state forbids it —
+   * e.g. editing a purchase order that has already been received. Distinct from
+   * `invalid-argument`, which means the input itself was wrong.
+   */
+  | 'failed-precondition'
+  /**
+   * A concurrent change beat this write — e.g. two admins adjusting the same
+   * product's stock. The caller should re-read and retry rather than clobber.
+   */
+  | 'aborted'
   | 'validation'
   | 'not-implemented'
   | 'unknown';
@@ -61,8 +72,11 @@ function mapFirebaseCode(code: string): AppErrorCode {
     case 'deadline-exceeded':
       return 'unavailable';
     case 'invalid-argument':
-    case 'failed-precondition':
       return 'invalid-argument';
+    case 'failed-precondition':
+      return 'failed-precondition';
+    case 'aborted':
+      return 'aborted';
     default:
       return 'unknown';
   }
@@ -76,6 +90,8 @@ const FRIENDLY_MESSAGE: Record<AppErrorCode, string> = {
   unauthenticated: 'Please sign in to continue.',
   unavailable: 'The service is temporarily unavailable. Please try again.',
   'invalid-argument': 'Some of the provided information is invalid.',
+  'failed-precondition': "This can't be done in the record's current state.",
+  aborted: 'Someone else changed this at the same time. Reload and try again.',
   validation: 'The provided data failed validation.',
   'not-implemented': 'This feature is not implemented yet.',
   unknown: 'Something went wrong. Please try again.',

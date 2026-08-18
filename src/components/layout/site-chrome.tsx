@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/footer';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
 import { SiteSettingsRuntime } from '@/components/layout/site-settings-runtime';
 import { WhatsAppButton } from '@/components/common/whatsapp-button';
+import { AnalyticsTracker } from '@/components/analytics/analytics-tracker';
 
 /**
  * Renders the public storefront chrome (skip link, sticky navbar, footer) around
@@ -38,6 +39,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
+      <AnalyticsTracker />
       <div className="flex min-h-screen flex-col">
         <AnnouncementBar />
         <Navbar />

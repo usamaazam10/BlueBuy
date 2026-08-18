@@ -32,7 +32,61 @@ service cloud.firestore {
     // this in src/lib/auth/roles.ts (DEFAULT_ROLE = 'viewer'), but THIS is the
     // real security boundary.
     function isAdmin() {
-      return request.auth != null && request.auth.token.role == 'admin';
+      return request.auth != null
+        && (request.auth.token.role == 'admin' || request.auth.token.role == 'owner');
+    }
+
+    // ── Operational roles (business operations) ───────────────────────────────
+    //
+    // These mirror the capability matrix in src/lib/auth/permissions.ts. That
+    // file governs what the UI *shows*; these functions govern what Firestore
+    // will actually *serve*, which is the real boundary. If you change one,
+    // change the other — a role that can see a page but is denied its data is
+    // a confusing bug, and the reverse is a security hole.
+    //
+    // Every operational role is opt-in: no existing user holds one, so
+    // deploying these rules grants nobody new access until the owner assigns a
+    // claim. `admin` and `owner` retain full access exactly as before.
+
+    function userRole() {
+      return request.auth != null ? request.auth.token.role : '';
+    }
+
+    // Reaches the /admin surface at all.
+    function isStaff() {
+      return request.auth != null && userRole() in
+        ['owner', 'admin', 'inventory_manager', 'sales_manager', 'operations'];
+    }
+
+    // Reads stock levels and the movement ledger.
+    function canViewInventory() {
+      return isStaff();
+    }
+
+    // Changes stock by hand, and receives goods.
+    function canManageInventory() {
+      return isAdmin() || userRole() == 'inventory_manager';
+    }
+
+    // Sees suppliers and purchase orders.
+    function canViewPurchases() {
+      return isAdmin() || userRole() in ['inventory_manager', 'operations'];
+    }
+
+    // Raises and edits purchase orders.
+    function canManagePurchases() {
+      return isAdmin() || userRole() == 'inventory_manager';
+    }
+
+    // Sees money: costs, expenses, cash and margin. Deliberately narrower than
+    // isStaff() — a sales manager sees turnover but not what the business pays.
+    function canViewFinance() {
+      return isAdmin() || userRole() == 'inventory_manager';
+    }
+
+    // Records expenses and cash movements.
+    function canManageFinance() {
+      return isAdmin();
     }
 
     // --- Catalogue: public read, admin write ---------------------------------
@@ -119,10 +173,130 @@ service cloud.firestore {
 
     // --- Orders: anonymous create (pending only), admin read/manage ----------
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Business operations
+    //
+    // NOTHING below is publicly readable. Supplier terms, purchase costs,
+    // expenses, cash position, margin and the audit trail are all private
+    // business data — a customer must never be able to read any of it, and the
+    // storefront never asks for it.
+    //
+    // The financial ledgers (`inventory_movements`, `purchase_receipts`,
+    // `cash_transactions`, `audit_logs`) are **append-only**: `create` is
+    // allowed to the appropriate role, and `update`/`delete` are allowed to
+    // nobody at all — not even an owner. Accounting history that can be quietly
+    // rewritten is not history. Corrections are made by writing a compensating
+    // record, which the app does explicitly.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    match /suppliers/{supplierId} {
+      allow read: if canViewPurchases();
+      allow create, update, delete: if canManagePurchases();
+    }
+
+    match /purchase_orders/{orderId} {
+      allow read: if canViewPurchases();
+      allow create, update: if canManagePurchases();
+      // Cancelling is a status update; deletion would orphan receipts and
+      // movements that reference this order.
+      allow delete: if false;
+    }
+
+    match /purchase_receipts/{receiptId} {
+      // A receipt is the evidence for a stock increase and its cost basis.
+      allow read: if canViewPurchases();
+      allow create: if canManageInventory();
+      allow update, delete: if false;
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read: if canViewInventory();
+      // Written by goods receipt, manual adjustment, order restocking and sale
+      // reconciliation — all authenticated admin actions. The public checkout
+      // does NOT write here: it decrements stock (allowed narrowly on
+      // /products above) and an admin posts the matching ledger entry, so the
+      // storefront needs no write access to business records at all.
+      allow create: if canManageInventory();
+      allow update, delete: if false;
+    }
+
+    match /expense_categories/{categoryId} {
+      allow read: if canViewFinance();
+      allow create, update, delete: if canManageFinance();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if canViewFinance();
+      allow create, update: if canManageFinance();
+      // An expense is a description and may be removed; the cash entry it
+      // produced is not, and stays in the ledger.
+      allow delete: if canManageFinance();
+    }
+
+    match /cash_transactions/{transactionId} {
+      allow read: if canViewFinance();
+      allow create: if canManageFinance();
+      allow update, delete: if false;
+    }
+
+    match /audit_logs/{logId} {
+      // Only an owner/admin may read the audit trail.
+      allow read: if isAdmin();
+      // Any staff member's actions must be recordable, or the operation they
+      // performed would fail for want of a log entry.
+      allow create: if isStaff();
+      allow update, delete: if false;
+    }
+
+    // ── Storefront commerce analytics ────────────────────────────────────────
+    // Reserved for the analytics phase. Events are appended by unauthenticated
+    // visitors, so `create` is shaped as tightly as the order-create rule and
+    // carries no personal data; reads are staff-only. Until the tracker ships,
+    // nothing writes here — the rule is in place so the collection is never
+    // briefly world-readable.
+
+    match /analytics_events/{eventId} {
+      allow read: if isStaff();
+      allow update, delete: if false;
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'type', 'sessionId', 'dayKey', 'path', 'productId', 'productTitle',
+          'categoryId', 'brandId', 'searchTerm', 'resultCount', 'quantity',
+          'value', 'occurredAt', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.type is string
+        && request.resource.data.type.size() <= 40
+        && request.resource.data.sessionId is string
+        && request.resource.data.sessionId.size() <= 64
+        && request.resource.data.dayKey is string
+        && request.resource.data.dayKey.size() == 10
+        && request.resource.data.path is string
+        && request.resource.data.path.size() <= 300
+        && request.resource.data.searchTerm is string
+        && request.resource.data.searchTerm.size() <= 120;
+    }
+
+    match /analytics_daily/{dayKey} {
+      // Rollups are computed and written from the admin.
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
     match /orders/{orderId} {
-      // Only signed-in admins may read, list, update or delete orders — order
-      // documents hold customer PII, so they are never publicly readable.
-      allow get, list, update, delete: if isAdmin();
+      // Order documents hold customer PII, so they are never publicly readable.
+      //
+      // Staff roles may read and update them (fulfilment is their job); only an
+      // owner/admin may delete. No operational role exists on any account until
+      // the owner assigns one, so this grants nobody new access on deploy.
+      //
+      // KNOWN LIMITATION: an order also carries its `costing` snapshot, and
+      // Firestore has no field-level read rules — so a role that can read
+      // orders can read cost data via the SDK even though the UI hides it from
+      // roles without `finance.view`. If strict separation is required, move
+      // `costing` to an `orders/{id}/costing` subcollection with its own rule.
+      // See BUSINESS_OPERATIONS.md § Security.
+      allow get, list, update: if isStaff();
+      allow delete: if isAdmin();
 
       // Anyone may place an order, but only in the initial `pending` state and
       // only in the EXACT shape the checkout writes: the precise set of

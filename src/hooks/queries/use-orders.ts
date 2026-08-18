@@ -10,14 +10,31 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderService, type PlaceOrderArgs } from '@/services/order.service';
+import { OrderRepository } from '@/repositories';
 import type { Order, OrderStatus } from '@/types/order';
-import { queryKeys } from './keys';
+import { queryKeys, rangeToken } from './keys';
 
 /** All orders, newest first (admin). */
 export function useOrdersQuery() {
   return useQuery<Order[]>({
     queryKey: queryKeys.orders,
     queryFn: () => orderService.list(),
+  });
+}
+
+/**
+ * Orders created within a window, for the business dashboards.
+ *
+ * Prefer this over {@link useOrdersQuery} on any reporting screen: it filters
+ * server-side, so a store with years of history still renders a 30-day view
+ * from a small read. Pass a range spanning both the selected period and its
+ * comparison period and split the result client-side.
+ */
+export function useOrdersInRange(range: { start: Date; end: Date } | null | undefined) {
+  return useQuery<Order[]>({
+    queryKey: ['orders', 'range', rangeToken(range)],
+    queryFn: () => OrderRepository.listInRange(range!.start, range!.end),
+    enabled: Boolean(range),
   });
 }
 

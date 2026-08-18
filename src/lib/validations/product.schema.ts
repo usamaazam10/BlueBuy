@@ -49,6 +49,14 @@ const productBaseSchema = z.object({
   rating: ratingSchema.default(0),
   reviewCount: z.number().int().nonnegative().default(0),
   stock: z.number().int().nonnegative().default(0),
+  // ── Inventory & cost basis (business operations) ──
+  // Nullable rather than defaulting to 0: a missing cost is "unknown", which the
+  // reporting layer surfaces as "insufficient cost data" instead of free stock.
+  costPrice: priceSchema.nullable().default(null),
+  averageCost: priceSchema.nullable().default(null),
+  lastPurchaseCost: priceSchema.nullable().default(null),
+  reorderLevel: z.number().int().nonnegative().default(0),
+  lowStockThreshold: z.number().int().nonnegative().nullable().default(null),
   tags: z.array(z.string()).default([]),
   specifications: z.array(productSpecificationSchema).default([]),
   featured: z.boolean().default(false),

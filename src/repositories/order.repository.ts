@@ -24,9 +24,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   runTransaction,
+  where,
   serverTimestamp,
   updateDoc,
   type DocumentData,
@@ -36,8 +38,14 @@ import { getDb, AppError, withAppError } from '@/firebase';
 import { COLLECTIONS, type Product } from '@/types/models';
 import type { CreateOrderInput, Order, OrderStatus } from '@/types/order';
 import { INITIAL_ORDER_STATUS } from '@/types/order';
+import type { ActorRef, OrderCosting, OrderDelivery } from '@/types/business';
 import { canTransition } from '@/lib/order/status';
-import { createOrderSchema, orderStatusSchema } from '@/lib/validations';
+import {
+  createOrderSchema,
+  orderCostingSchema,
+  orderDeliverySchema,
+  orderStatusSchema,
+} from '@/lib/validations';
 
 /** Firestore collection reference for orders. */
 function ordersCollection() {
@@ -176,6 +184,29 @@ export const OrderRepository = {
   },
 
   /**
+   * Orders created within a window, newest first.
+   *
+   * The business dashboards use this instead of {@link list} so a store with a
+   * long history doesn't stream every order into the browser to render a
+   * 30-day KPI. Callers that need a period *and* its comparison fetch one range
+   * spanning both and split client-side — one read, not two.
+   */
+  async listInRange(start: Date, end: Date, max = 2000): Promise<Order[]> {
+    return withAppError(async () => {
+      const snap = await getDocs(
+        query(
+          ordersCollection(),
+          where('createdAt', '>=', start),
+          where('createdAt', '<', end),
+          orderBy('createdAt', 'desc'),
+          limit(max)
+        )
+      );
+      return snap.docs.map(fromSnapshot);
+    }, 'list orders');
+  },
+
+  /**
    * Update an order's status. Rejects an invalid transition (see the lifecycle
    * in `@/types/order`) so an order can't skip or reverse states. Admin-only in
    * practice — enforced by auth + Firestore Security Rules.
@@ -201,6 +232,219 @@ export const OrderRepository = {
       const updated = await getDoc(ref);
       return fromSnapshot(updated as QueryDocumentSnapshot<DocumentData>);
     }, 'update order status');
+  },
+
+  // ─────────────────── Business operations (admin-only) ────────────────────
+  // The methods below write fields the storefront can neither read nor set —
+  // cost snapshots, courier details, refunds. The `orders` create rule pins the
+  // exact field set an anonymous checkout may write, so none of these can be
+  // supplied at checkout time; they are added later by an authenticated admin.
+
+  /**
+   * Attach a cost-of-goods snapshot to an order.
+   *
+   * Refuses to overwrite an existing snapshot: once captured, an order's cost is
+   * history, and recapturing it later at a different weighted average would
+   * silently rewrite past margin. Correcting a genuinely wrong snapshot is a
+   * deliberate act — pass `force`.
+   */
+  async applyCosting(id: string, costing: OrderCosting, force = false): Promise<Order> {
+    orderCostingSchema.parse(costing);
+    const ref = doc(getDb(), COLLECTIONS.orders, id);
+
+    return withAppError(async () => {
+      const current = await getDoc(ref);
+      if (!current.exists()) throw new AppError('not-found', 'The order no longer exists.');
+      const order = fromSnapshot(current as QueryDocumentSnapshot<DocumentData>);
+
+      if (order.costing && !force) {
+        throw new AppError(
+          'failed-precondition',
+          'This order already has a cost snapshot. Re-capturing would rewrite historical profit.'
+        );
+      }
+
+      await updateDoc(ref, { costing: pruneUndefined(costing), updatedAt: serverTimestamp() });
+      const updated = await getDoc(ref);
+      return fromSnapshot(updated as QueryDocumentSnapshot<DocumentData>);
+    }, 'capture order costs');
+  },
+
+  /**
+   * Append the `sale` inventory movements for an order, atomically and once.
+   *
+   * Checkout already decremented stock, so this writes **ledger entries only**
+   * — it must not touch `stock` again. `saleMovementsRecorded` is set in the
+   * same transaction and checked first, so calling this repeatedly (or from both
+   * the costing flow and the reconcile tool) can never double-post.
+   *
+   * `stockAfter` is read from the product at posting time. It is therefore the
+   * level *now*, not necessarily the instant after the sale — an acceptable
+   * approximation for a ledger entry written after the fact, and noted as such
+   * in BUSINESS_OPERATIONS.md § Inventory ledger.
+   */
+  async recordSaleMovements(
+    id: string,
+    actor: ActorRef
+  ): Promise<{ recorded: boolean; lines: number }> {
+    const db = getDb();
+    const orderRef = doc(db, COLLECTIONS.orders, id);
+
+    return withAppError(async () => {
+      return runTransaction(db, async (tx) => {
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists()) throw new AppError('not-found', 'The order no longer exists.');
+        const order = fromSnapshot(orderSnap as QueryDocumentSnapshot<DocumentData>);
+
+        if (order.saleMovementsRecorded) return { recorded: false, lines: 0 };
+
+        const levels = new Map<string, number>();
+        for (const item of order.items) {
+          const snap = await tx.get(doc(db, COLLECTIONS.products, item.productId));
+          if (snap.exists()) levels.set(item.productId, (snap.data() as Product).stock ?? 0);
+        }
+
+        let lines = 0;
+        for (const item of order.items) {
+          const stockAfter = levels.get(item.productId);
+          if (stockAfter === undefined) continue;
+          lines += 1;
+          tx.set(
+            doc(collection(db, COLLECTIONS.inventoryMovements)),
+            pruneUndefined({
+              productId: item.productId,
+              productTitle: item.title,
+              productSlug: item.slug,
+              type: 'sale',
+              quantityChange: -item.quantity,
+              stockAfter,
+              // Cost lives on the order's costing snapshot, not here — a sale
+              // movement carrying its own cost would create a second, divergent
+              // source of truth for COGS.
+              unitCost: null,
+              totalValue: null,
+              reference: { kind: 'order', id: order.id, label: order.orderId },
+              reason: 'Sold at checkout',
+              notes: '',
+              createdBy: actor,
+              occurredAt: order.createdAt ?? serverTimestamp(),
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            })
+          );
+        }
+
+        tx.update(orderRef, { saleMovementsRecorded: true, updatedAt: serverTimestamp() });
+        return { recorded: true, lines };
+      });
+    }, 'record sale movements');
+  },
+
+  /** Set or update courier / fulfilment details on an order. */
+  async updateDelivery(id: string, delivery: OrderDelivery): Promise<Order> {
+    orderDeliverySchema.parse(delivery);
+    const ref = doc(getDb(), COLLECTIONS.orders, id);
+
+    return withAppError(async () => {
+      await updateDoc(ref, { delivery: pruneUndefined(delivery), updatedAt: serverTimestamp() });
+      const updated = await getDoc(ref);
+      if (!updated.exists()) throw new AppError('not-found', 'The order no longer exists.');
+      return fromSnapshot(updated as QueryDocumentSnapshot<DocumentData>);
+    }, 'update delivery details');
+  },
+
+  /** Record an amount refunded to the customer. */
+  async setRefund(id: string, amount: number): Promise<Order> {
+    const ref = doc(getDb(), COLLECTIONS.orders, id);
+    return withAppError(async () => {
+      await updateDoc(ref, { refundedAmount: amount, updatedAt: serverTimestamp() });
+      const updated = await getDoc(ref);
+      if (!updated.exists()) throw new AppError('not-found', 'The order no longer exists.');
+      return fromSnapshot(updated as QueryDocumentSnapshot<DocumentData>);
+    }, 'record refund');
+  },
+
+  /**
+   * Return an order's items to stock, atomically.
+   *
+   * Used when an order is cancelled or returned: checkout decremented stock at
+   * placement, so those units must come back. `inventoryRestored` is set inside
+   * the same transaction and checked first, which is what makes this safe to
+   * call twice — a double cancellation can never inflate stock.
+   *
+   * Each restored line also appends an inventory movement, so the ledger
+   * explains the increase rather than stock silently jumping.
+   */
+  async restoreInventory(
+    id: string,
+    actor: ActorRef,
+    type: 'return' | 'correction',
+    reason: string
+  ): Promise<{ restored: boolean; units: number }> {
+    const db = getDb();
+    const orderRef = doc(db, COLLECTIONS.orders, id);
+
+    return withAppError(async () => {
+      return runTransaction(db, async (tx) => {
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists()) throw new AppError('not-found', 'The order no longer exists.');
+        const order = fromSnapshot(orderSnap as QueryDocumentSnapshot<DocumentData>);
+
+        // Idempotence guard — the whole point of this method.
+        if (order.inventoryRestored) return { restored: false, units: 0 };
+
+        // Reads first.
+        const products: {
+          ref: ReturnType<typeof doc>;
+          stock: number;
+          item: Order['items'][number];
+        }[] = [];
+        for (const item of order.items) {
+          const productRef = doc(db, COLLECTIONS.products, item.productId);
+          const snap = await tx.get(productRef);
+          // A product deleted since the order was placed simply can't be
+          // restocked; the rest of the order still is.
+          if (!snap.exists()) continue;
+          const product = snap.data() as Product;
+          products.push({
+            ref: productRef,
+            stock: typeof product.stock === 'number' ? product.stock : 0,
+            item,
+          });
+        }
+
+        let units = 0;
+        for (const entry of products) {
+          const nextStock = entry.stock + entry.item.quantity;
+          units += entry.item.quantity;
+
+          tx.update(entry.ref, { stock: nextStock, updatedAt: serverTimestamp() });
+          tx.set(
+            doc(collection(db, COLLECTIONS.inventoryMovements)),
+            pruneUndefined({
+              productId: entry.item.productId,
+              productTitle: entry.item.title,
+              productSlug: entry.item.slug,
+              type,
+              quantityChange: entry.item.quantity,
+              stockAfter: nextStock,
+              unitCost: null,
+              totalValue: null,
+              reference: { kind: 'order', id: order.id, label: order.orderId },
+              reason,
+              notes: '',
+              createdBy: actor,
+              occurredAt: serverTimestamp(),
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            })
+          );
+        }
+
+        tx.update(orderRef, { inventoryRestored: true, updatedAt: serverTimestamp() });
+        return { restored: true, units };
+      });
+    }, 'restore inventory');
   },
 };
 
