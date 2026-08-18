@@ -142,21 +142,26 @@ export function OrdersBrowser() {
     setStatus('all');
   };
 
-  function handleUpdateStatus(order: Order, next: OrderStatus) {
+  function handleUpdateStatus(order: Order, next: OrderStatus, restock = true) {
     // Goes through the fulfilment service rather than a bare status write:
-    // cancelling or returning an order must also return its items to stock
-    // (checkout removed them at placement) and record the inventory movement
-    // and audit entry. The restore is idempotent, so a repeated cancel can't
-    // inflate stock. See BUSINESS_OPERATIONS.md § Inventory ledger.
+    // cancelling or returning an order must also decide what happens to its
+    // stock (checkout removed the units at placement) and record the inventory
+    // movements and audit entry — all in one transaction. It is idempotent, so
+    // a repeated cancel can't inflate stock. See BUSINESS_OPERATIONS.md
+    // § Inventory ledger.
     updateStatus.mutate(
-      { id: order.id, status: next },
+      { id: order.id, status: next, restock },
       {
         onSuccess: () => {
-          const restocked = next === 'cancelled' || next === 'returned';
+          const closed = next === 'cancelled' || next === 'returned';
           toast.success(
             'Status updated',
             `${order.orderId} is now ${orderStatusLabel(next)}.${
-              restocked ? ' Its items were returned to stock.' : ''
+              closed
+                ? restock
+                  ? ' Its items were returned to stock.'
+                  : ' Its items were written off, not returned to stock.'
+                : ''
             }`
           );
         },

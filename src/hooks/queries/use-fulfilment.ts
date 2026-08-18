@@ -51,17 +51,20 @@ export function useCaptureOrderCosts() {
 /**
  * Change an order's fulfilment status.
  *
- * Prefer this over `useUpdateOrderStatus` in the admin: cancelling or returning
- * an order here also returns its items to stock, which the plain status update
- * does not do.
+ * The only path that may close an order as cancelled/returned: it moves the
+ * status, the stock and the ledger entries in one transaction. `restock: false`
+ * records a return whose goods came back unsellable — the sale is still
+ * ledgered, but the units are not put back on the shelf. `useUpdateOrderStatus`
+ * refuses those two statuses outright.
  */
 export function useFulfilOrderStatus() {
   const queryClient = useQueryClient();
   const invalidate = useOrderInvalidation();
   const actor = useActor();
 
-  return useMutation<Order, Error, { id: string; status: OrderStatus }>({
-    mutationFn: ({ id, status }) => orderFulfilmentService.updateStatus(id, status, actor),
+  return useMutation<Order, Error, { id: string; status: OrderStatus; restock?: boolean }>({
+    mutationFn: ({ id, status, restock }) =>
+      orderFulfilmentService.updateStatus(id, status, actor, restock ?? true),
     onSuccess: (order) => {
       invalidate(order.id);
       // Cancel/return restocks, so the catalogue and ledger both moved.

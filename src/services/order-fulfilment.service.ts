@@ -103,7 +103,13 @@ export const orderFulfilmentService = {
     const order = await OrderRepository.getById(orderId);
     if (!order) throw new AppError('not-found', 'The order no longer exists.');
 
-    if (order.costing && !force) {
+    // A stored snapshot that resolved no lines is not history worth protecting:
+    // it records that no cost basis existed at the time. Once the operator has
+    // entered real costs, re-capturing must be allowed without `force`, or the
+    // order would be stuck reporting an unknown cost for ever.
+    const hasCostLines = (order.costing?.lines?.length ?? 0) > 0;
+
+    if (order.costing && hasCostLines && !force) {
       // Already costed — still make sure the ledger side is complete, since the
       // two are written by separate transactions.
       const movements = await OrderRepository.recordSaleMovements(orderId, actor);
@@ -124,7 +130,13 @@ export const orderFulfilmentService = {
     });
 
     const { costing, missing } = buildCosting(order, products, actor);
-    const updated = await OrderRepository.applyCosting(orderId, costing, force);
+    // `force` here also covers overwriting an empty snapshot, which `applyCosting`
+    // would otherwise refuse as if it were real cost history.
+    const updated = await OrderRepository.applyCosting(
+      orderId,
+      costing,
+      force || Boolean(order.costing)
+    );
     const movements = await OrderRepository.recordSaleMovements(orderId, actor);
 
     await auditService.record({
@@ -157,37 +169,61 @@ export const orderFulfilmentService = {
    *
    * Cancelling or returning restocks the items — checkout took them out of stock
    * at placement, so leaving them out would permanently lose sellable inventory.
-   * The restore is idempotent, so a double cancel can't inflate stock.
+   * That path goes through {@link OrderRepository.closeWithRestock}, which moves
+   * the status, the stock and the ledger entries in a **single transaction**: a
+   * caller who cannot write stock changes nothing at all, rather than cancelling
+   * the order and then silently failing to restock it.
+   *
+   * @param restock Only meaningful for `returned`. Pass false when the goods
+   *   came back unsellable — the return is recorded, but the units are not put
+   *   back on the shelf.
    */
-  async updateStatus(orderId: string, status: OrderStatus, actor: ActorRef): Promise<Order> {
+  async updateStatus(
+    orderId: string,
+    status: OrderStatus,
+    actor: ActorRef,
+    restock = true
+  ): Promise<Order> {
     const before = await OrderRepository.getById(orderId);
     if (!before) throw new AppError('not-found', 'The order no longer exists.');
 
-    const order = await OrderRepository.updateStatus(orderId, status);
-
-    let restoredUnits = 0;
     if (status === 'cancelled' || status === 'returned') {
-      const result = await OrderRepository.restoreInventory(
+      const result = await OrderRepository.closeWithRestock(
         orderId,
+        status,
         actor,
-        status === 'returned' ? 'return' : 'correction',
-        status === 'returned' ? 'Customer return' : 'Order cancelled'
+        status === 'returned' ? 'Customer return' : 'Order cancelled',
+        restock
       );
-      restoredUnits = result.units;
+
+      await auditService.record({
+        action: status === 'returned' ? 'order.returned' : 'order.status_changed',
+        entity: 'order',
+        entityId: result.order.id,
+        entityLabel: result.order.orderId,
+        summary:
+          result.restoredUnits > 0
+            ? `Order ${result.order.orderId}: ${before.status} → ${status}; ${result.restoredUnits} unit${result.restoredUnits === 1 ? '' : 's'} returned to stock`
+            : `Order ${result.order.orderId}: ${before.status} → ${status}; no units returned to stock`,
+        actor,
+        before: { status: before.status },
+        after: { status, restoredUnits: result.restoredUnits, restock },
+      });
+
+      return result.order;
     }
 
+    const order = await OrderRepository.updateStatus(orderId, status);
+
     await auditService.record({
-      action: status === 'returned' ? 'order.returned' : 'order.status_changed',
+      action: 'order.status_changed',
       entity: 'order',
       entityId: order.id,
       entityLabel: order.orderId,
-      summary:
-        restoredUnits > 0
-          ? `Order ${order.orderId}: ${before.status} → ${status}; ${restoredUnits} unit${restoredUnits === 1 ? '' : 's'} returned to stock`
-          : `Order ${order.orderId}: ${before.status} → ${status}`,
+      summary: `Order ${order.orderId}: ${before.status} → ${status}`,
       actor,
       before: { status: before.status },
-      after: { status, restoredUnits },
+      after: { status },
     });
 
     return order;

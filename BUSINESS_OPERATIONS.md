@@ -103,7 +103,7 @@ compensating `correction` movement.
 | ---------------------------------------- | -------------------------------- | ------------------------------------- |
 | `purchase_received`                      | Receiving goods                  | Stock increase + cost basis + receipt |
 | `sale`                                   | Admin (cost capture / reconcile) | The `saleMovementsRecorded` flag      |
-| `return` / `correction`                  | Cancelling or returning an order | The stock restore                     |
+| `return` / `correction`                  | Cancelling or returning an order | The status change + the stock restore |
 | `adjustment` `damaged` `lost` `transfer` | Manual adjustment                | The stock change                      |
 
 ### Why sale movements are posted by an admin
@@ -118,6 +118,30 @@ double-post.
 Trade-off: a sale movement's `stockAfter` is the level at posting time, not the
 instant of sale. Accepted deliberately — the alternative was opening an anonymous
 write path into financial records.
+
+### Closing an order is one transaction
+
+Cancelling or returning an order moves **three** things that must agree, so
+`OrderRepository.closeWithRestock` does all of them in a single transaction: the
+status, the stock, and the ledger entries.
+
+Crucially it posts the order's `sale` movements first if they were never
+captured. Without that the restore's `+n` had no matching `−n` — and because
+`reconcileSaleMovements` deliberately skips cancelled orders, the ledger drifted
+away from `stock` permanently with no way to reconcile it. Doing all three
+together also means a user who lacks permission to write stock changes _nothing_,
+rather than flipping the status and silently failing to restock.
+
+### Returns: restock or write off
+
+A return has two possible inventory outcomes and the system does not guess. The
+operator chooses:
+
+- **Back to sellable stock** — a `return` movement adds the units back.
+- **Write off** — the sale stays in the ledger and the units never come back.
+
+Both record the sale, so the ledger reconciles either way. Only the first raises
+the stock level.
 
 ### Stock semantics
 
@@ -186,11 +210,12 @@ or delete, in the repository or in the security rules.
 ─────────────────────
 = Gross profit
 − Operating expenses     (excludes inventory purchases)
+− Delivery costs         (courier charges recorded on orders)
 ─────────────────────
 = Operating profit
 ```
 
-Two rules this enforces:
+Three rules this enforces:
 
 1. **Inventory purchases are not an operating expense.** Money spent on stock
    becomes COGS when that stock _sells_. Expenses flagged
@@ -198,6 +223,14 @@ Two rules this enforces:
    would double-count against COGS and understate profit, sometimes wildly.
 2. **Profit is withheld when its inputs are unknown.** `dataQuality` is
    `complete` / `partial` / `unavailable`, and the UI renders the reason.
+   A captured snapshot that resolved **no** cost lines counts as _unknown_, not
+   as a cost of zero — otherwise the P&L reports gross profit equal to net sales
+   and prints a 100% margin, which is exactly the fabrication rule 1 of §1
+   forbids.
+3. **Delivery is a real cost, counted once.** Courier charges recorded on orders
+   are subtracted. Because a shop may _also_ file the courier's invoice as an
+   expense, `deliveryCostNote` warns when both appear in one period instead of
+   silently double-counting.
 
 Shipping charged to customers is **not** in net sales — it offsets a delivery
 cost rather than being product revenue. It is reported separately.
@@ -448,16 +481,19 @@ reason conversion rates are.
 The data model is shaped so an integration can populate the same fields later;
 nothing in the UI implies live tracking that isn't there.
 
-Delivery cost recorded on an order is informational. It becomes an operating cost
-when you record it as a shipping expense — the P&L does not double-count it
-automatically.
+Delivery cost recorded on an order **is** an operating cost and is subtracted in
+the P&L (see §7). It is counted across every order, including returned ones — an
+attempted delivery still cost money. If you also file courier invoices as a
+shipping expense, the profit page warns you that the same money may be counted
+twice; pick one place to record it.
 
 ---
 
 ## 15. Testing
 
 ```bash
-npm test        # 119 unit tests over the calculation engine
+npm test              # 127 unit tests over the calculation engine
+npm run test:integration  # 15 emulator tests over the real transactions
 npm run typecheck
 npm run lint
 npm run build
@@ -475,7 +511,28 @@ injection.
 Two tests exist specifically to stop PII leaking: customer grouping keys must not
 contain the phone number, and customer rows must not serialise it.
 
-**Not covered by automated tests:** repositories, services and Firestore
-transactions. These need the Firebase emulator suite, which is not configured.
-The transactional paths — receiving goods, stock adjustment, order restocking and
-sale-movement posting — are the highest-value place to add emulator tests next.
+### Integration tests (Firestore emulator)
+
+`npm run test:integration` starts the emulator, runs `*.emulator.test.ts` against
+the **real** repositories, and shuts it down. It uses `firebase.integration.json`
+and the open `firestore.test.rules`, and a dummy Firebase config so it can never
+reach the live project.
+
+They prove the transactional guarantees that unit tests cannot:
+
+- a draft or `ordered` purchase raises no stock; only receiving does
+- a partial receipt raises exactly the received quantity, and completes the order
+- over-receiving is rejected and writes nothing at all
+- weighted average across two receipts (10×100 then 10×200 → 150)
+- placing an order decrements stock once; later status changes never re-decrement
+- overselling is refused and leaves no order behind
+- two buyers racing for the last unit → exactly one succeeds
+- receiving the same PO twice concurrently → stock rises once
+- cancelling is idempotent, and **the movement ledger nets to `stock`** — the
+  regression that motivated `closeWithRestock`
+- closing an order into a status its lifecycle forbids changes nothing
+- a written-off return records the sale without restocking
+
+**Still not covered:** Firestore _rules_ themselves (the suite runs with open
+rules to exercise the transactions), the CMS and Cloudinary paths, and the React
+components.

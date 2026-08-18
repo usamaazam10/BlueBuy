@@ -9,6 +9,7 @@
  *   ─────────────────────────
  *   = Gross profit
  *   − Operating expenses       (expenses collection, excluding inventory buys)
+ *   − Delivery costs           (what couriers charged, recorded per order)
  *   ─────────────────────────
  *   = Operating profit
  *
@@ -25,6 +26,11 @@
  *    order in the period lacks a cost snapshot, gross profit is not a fact — it
  *    is a guess. `dataQuality` says so, and the UI must render "insufficient
  *    cost data" instead of a number.
+ *
+ * 3. **Delivery is a real cost and is counted once.** What a courier charges is
+ *    recorded per order (`delivery.deliveryCost`) and subtracted here. Because a
+ *    shop may *also* log courier bills as an expense, `deliveryCostNote` warns
+ *    when both appear in the same period rather than silently double-counting.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import type { Order } from '@/types/order';
@@ -93,6 +99,38 @@ export function expenseBreakdown(expenses: readonly Expense[]): ExpenseBreakdown
 }
 
 /**
+ * Courier costs recorded against orders in a period.
+ *
+ * Deliberately spans **every** order, not just revenue orders: a delivery that
+ * was attempted and then returned still cost money, and excluding it would
+ * understate what fulfilment actually costs to run.
+ */
+export function deliveryCostTotal(orders: readonly Order[]): number {
+  return roundMoney(
+    orders.reduce((sum, order) => sum + Math.abs(order.delivery?.deliveryCost ?? 0), 0)
+  );
+}
+
+/** Expense categories that plainly describe courier/delivery spend. */
+const DELIVERY_EXPENSE_HINTS = ['shipping', 'delivery', 'courier', 'freight'];
+
+/**
+ * Whether a period records courier spend in *both* places. Recording an order's
+ * delivery cost and also filing the courier's invoice as an expense counts the
+ * same money twice; this surfaces it rather than quietly inflating costs.
+ */
+export function hasDuplicateDeliveryCosts(
+  orders: readonly Order[],
+  expenses: readonly Expense[]
+): boolean {
+  if (deliveryCostTotal(orders) <= 0) return false;
+  return expenses.some((expense) => {
+    const name = (expense.categoryName || '').toLowerCase();
+    return DELIVERY_EXPENSE_HINTS.some((hint) => name.includes(hint));
+  });
+}
+
+/**
  * How trustworthy a profit figure is.
  *
  * `complete`   — every revenue order has a full cost snapshot; profit is a fact.
@@ -106,11 +144,21 @@ export interface ProfitAndLoss {
   cogs: CogsSummary;
   expenses: ExpenseBreakdown;
 
+  /** Courier costs recorded on the period's orders. */
+  deliveryCosts: number;
+  /** Operating expenses + delivery costs — everything below gross profit. */
+  operatingCosts: number;
+  /**
+   * Set when courier spend appears both on orders and as an expense in this
+   * period, which would double-count it. Null when there is nothing to warn about.
+   */
+  deliveryCostNote: string | null;
+
   /** Net sales − COGS, or `null` when no cost data exists. */
   grossProfit: number | null;
   /** Gross profit ÷ net sales × 100, or `null`. */
   grossMarginPercent: number | null;
-  /** Gross profit − operating expenses, or `null` when gross profit is unknown. */
+  /** Gross profit − operating costs, or `null` when gross profit is unknown. */
   operatingProfit: number | null;
   /** Operating profit ÷ net sales × 100, or `null`. */
   operatingMarginPercent: number | null;
@@ -134,6 +182,8 @@ export function profitAndLoss(
   const sales = salesMetrics(orders);
   const cogs = cogsSummary(orders);
   const expenseSplit = expenseBreakdown(expenses);
+  const deliveryCosts = deliveryCostTotal(orders);
+  const operatingCosts = roundMoney(expenseSplit.operating + deliveryCosts);
 
   const hasAnyCost = cogs.costedOrders + cogs.partialOrders > 0;
 
@@ -158,8 +208,7 @@ export function profitAndLoss(
   const grossProfit =
     dataQuality === 'unavailable' ? null : roundMoney(sales.netSales - cogs.total);
   const grossMargin = grossProfit === null ? null : percentOf(grossProfit, sales.netSales);
-  const operatingProfit =
-    grossProfit === null ? null : roundMoney(grossProfit - expenseSplit.operating);
+  const operatingProfit = grossProfit === null ? null : roundMoney(grossProfit - operatingCosts);
   const operatingMargin =
     operatingProfit === null ? null : percentOf(operatingProfit, sales.netSales);
 
@@ -167,6 +216,11 @@ export function profitAndLoss(
     sales,
     cogs,
     expenses: expenseSplit,
+    deliveryCosts,
+    operatingCosts,
+    deliveryCostNote: hasDuplicateDeliveryCosts(orders, expenses)
+      ? 'This period records courier spend both on orders and as an expense. Check you are not counting the same delivery twice.'
+      : null,
     grossProfit,
     grossMarginPercent: grossMargin,
     operatingProfit,

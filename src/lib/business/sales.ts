@@ -56,12 +56,18 @@ export function orderUnits(order: Order): number {
 export function orderCogs(order: Order): number | null {
   const costing = order.costing;
   if (!costing) return null;
+  // A snapshot that resolved NO lines is not a cost of zero — it is the record
+  // of an attempt that found no cost basis for anything on the order. Reporting
+  // its `totalCost` (0) would hand the P&L a free cost of goods and print a
+  // 100% margin, which is exactly the fabrication this module exists to refuse.
+  // Treat it as unknown, so the order counts as uncosted.
+  if (!costing.lines || costing.lines.length === 0) return null;
   return roundMoney(costing.totalCost);
 }
 
 /** Whether an order carries a complete, trustworthy cost snapshot. */
 export function hasCompleteCosting(order: Order): boolean {
-  return Boolean(order.costing?.complete);
+  return Boolean(order.costing?.complete) && (order.costing?.lines?.length ?? 0) > 0;
 }
 
 /** Headline sales figures for a set of orders. */

@@ -157,6 +157,7 @@ export function ProfitBrowser() {
       />
 
       {pl.dataNote && <DataQualityNote message={pl.dataNote} className="mb-4" />}
+      {pl.deliveryCostNote && <DataQualityNote message={pl.deliveryCostNote} className="mb-4" />}
 
       {uncosted.length > 0 && (
         <div className="border-border bg-card mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
@@ -221,6 +222,12 @@ export function ProfitBrowser() {
                 : 'Excludes inventory purchases'
             }
             value={`− ${money(pl.expenses.operating)}`}
+            negative
+          />
+          <StatementRow
+            label="Less: delivery costs"
+            hint="Courier charges recorded on this period's orders"
+            value={`− ${money(pl.deliveryCosts)}`}
             negative
           />
           <StatementRow
@@ -365,7 +372,7 @@ export function ProfitBrowser() {
       </div>
 
       <p className="text-muted-foreground mt-4 text-xs text-pretty">
-        Operating expenses come from{' '}
+        Delivery costs are the courier charges recorded on each order. Operating expenses come from{' '}
         <Link href="/admin/expenses" className="text-brand hover:underline">
           Expenses
         </Link>

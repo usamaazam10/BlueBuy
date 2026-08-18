@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "firebase emulators:exec --config firebase.integration.json --project bluebuy-test --only firestore \"vitest run --config vitest.integration.config.ts\"",
     "prepare": "husky"
   },
   "dependencies": {

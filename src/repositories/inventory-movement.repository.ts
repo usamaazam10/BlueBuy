@@ -9,9 +9,12 @@
  *  - {@link InventoryMovementRepository.adjust} — manual operator adjustments
  *    (this file), atomic with the stock change.
  *  - `PurchaseRepository.receive` — goods inwards, atomic with the receipt.
- *  - `OrderFulfilmentService` — restock on cancellation/return.
- *  - The storefront checkout — a `sale` movement written inside the same
- *    transaction that decrements stock (see `order.repository.ts`).
+ *  - `OrderRepository.closeWithRestock` — cancellation/return, which posts the
+ *    order's `sale` movements and the restocking movement together.
+ *  - `OrderRepository.recordSaleMovements` — the `sale` entries for an order.
+ *    The storefront checkout does NOT write here: it is unauthenticated, so it
+ *    only decrements stock (allowed narrowly in `firestore.rules`) and an admin
+ *    action posts the matching ledger entry afterwards.
  */
 import {
   doc,

@@ -60,7 +60,13 @@ export function usePlaceOrder() {
   });
 }
 
-/** Update an order's status (admin). Invalidates the list + that order. */
+/**
+ * Update an order's status (admin). Invalidates the list + that order.
+ *
+ * Cannot close an order as cancelled/returned — that path has an inventory
+ * consequence and must go through `useFulfilOrderStatus`, which restocks and
+ * writes the ledger entries in the same transaction.
+ */
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
   return useMutation<Order, Error, { id: string; status: OrderStatus }>({

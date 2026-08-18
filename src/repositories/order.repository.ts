@@ -365,24 +365,44 @@ export const OrderRepository = {
   },
 
   /**
-   * Return an order's items to stock, atomically.
+   * Close an order into `cancelled` or `returned` — status, stock and ledger in
+   * ONE transaction.
    *
-   * Used when an order is cancelled or returned: checkout decremented stock at
-   * placement, so those units must come back. `inventoryRestored` is set inside
-   * the same transaction and checked first, which is what makes this safe to
-   * call twice — a double cancellation can never inflate stock.
+   * Three things must happen together when an order ends in a state where the
+   * goods come back, and splitting them is what used to go wrong:
    *
-   * Each restored line also appends an inventory movement, so the ledger
-   * explains the increase rather than stock silently jumping.
+   *  1. **The status changes.** Validated against the lifecycle, so an order
+   *     can't be cancelled from a state that forbids it.
+   *  2. **The stock comes back.** Checkout decremented it at placement, so
+   *     leaving it out would permanently lose sellable inventory.
+   *  3. **The ledger explains both.** Checkout writes no movement of its own
+   *     (it is unauthenticated — see {@link recordSaleMovements}), so if the
+   *     order was never costed, its `sale` movements are posted here first.
+   *     Without that the restore's `+n` has no matching `−n` and the movement
+   *     ledger drifts away from `stock` permanently, with no way to reconcile
+   *     it: `reconcileSaleMovements` deliberately skips cancelled orders.
+   *
+   * Doing all three in one transaction also means a caller who lacks permission
+   * to write stock (a `sales_manager`, say — see `firestore.rules`) changes
+   * *nothing at all* rather than flipping the status and silently failing to
+   * restock. Both idempotence flags are set inside the transaction and checked
+   * first, so a double cancellation can never inflate stock or double-post.
+   *
+   * @param restock When false the goods are NOT returned to sellable stock —
+   *   used for a return that comes back damaged or unsellable. The sale
+   *   movements are still posted, so the ledger stays balanced against the
+   *   units that left; they simply never come back.
    */
-  async restoreInventory(
+  async closeWithRestock(
     id: string,
+    status: Extract<OrderStatus, 'cancelled' | 'returned'>,
     actor: ActorRef,
-    type: 'return' | 'correction',
-    reason: string
-  ): Promise<{ restored: boolean; units: number }> {
+    reason: string,
+    restock = true
+  ): Promise<{ order: Order; restoredUnits: number; saleLines: number }> {
     const db = getDb();
     const orderRef = doc(db, COLLECTIONS.orders, id);
+    const movementType = status === 'returned' ? 'return' : 'correction';
 
     return withAppError(async () => {
       return runTransaction(db, async (tx) => {
@@ -390,11 +410,15 @@ export const OrderRepository = {
         if (!orderSnap.exists()) throw new AppError('not-found', 'The order no longer exists.');
         const order = fromSnapshot(orderSnap as QueryDocumentSnapshot<DocumentData>);
 
-        // Idempotence guard — the whole point of this method.
-        if (order.inventoryRestored) return { restored: false, units: 0 };
+        if (order.status !== status && !canTransition(order.status, status)) {
+          throw new AppError(
+            'invalid-argument',
+            `Can't move an order from “${order.status}” to “${status}”.`
+          );
+        }
 
-        // Reads first.
-        const products: {
+        // ── Reads first: Firestore requires every read before any write. ──
+        const entries: {
           ref: ReturnType<typeof doc>;
           stock: number;
           item: Order['items'][number];
@@ -403,48 +427,93 @@ export const OrderRepository = {
           const productRef = doc(db, COLLECTIONS.products, item.productId);
           const snap = await tx.get(productRef);
           // A product deleted since the order was placed simply can't be
-          // restocked; the rest of the order still is.
+          // restocked or ledgered; the rest of the order still is.
           if (!snap.exists()) continue;
           const product = snap.data() as Product;
-          products.push({
+          entries.push({
             ref: productRef,
             stock: typeof product.stock === 'number' ? product.stock : 0,
             item,
           });
         }
 
-        let units = 0;
-        for (const entry of products) {
-          const nextStock = entry.stock + entry.item.quantity;
-          units += entry.item.quantity;
-
-          tx.update(entry.ref, { stock: nextStock, updatedAt: serverTimestamp() });
-          tx.set(
-            doc(collection(db, COLLECTIONS.inventoryMovements)),
-            pruneUndefined({
-              productId: entry.item.productId,
-              productTitle: entry.item.title,
-              productSlug: entry.item.slug,
-              type,
-              quantityChange: entry.item.quantity,
-              stockAfter: nextStock,
-              unitCost: null,
-              totalValue: null,
-              reference: { kind: 'order', id: order.id, label: order.orderId },
-              reason,
-              notes: '',
-              createdBy: actor,
-              occurredAt: serverTimestamp(),
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            })
-          );
+        // ── Write the sale movements the checkout could not write itself. ──
+        // `stockAfter` is the level as it stands now, which is exactly the
+        // level the sale left behind — nothing has restocked yet.
+        let saleLines = 0;
+        if (!order.saleMovementsRecorded) {
+          for (const entry of entries) {
+            saleLines += 1;
+            tx.set(
+              doc(collection(db, COLLECTIONS.inventoryMovements)),
+              pruneUndefined({
+                productId: entry.item.productId,
+                productTitle: entry.item.title,
+                productSlug: entry.item.slug,
+                type: 'sale',
+                quantityChange: -entry.item.quantity,
+                stockAfter: entry.stock,
+                unitCost: null,
+                totalValue: null,
+                reference: { kind: 'order', id: order.id, label: order.orderId },
+                reason: 'Sold at checkout',
+                notes: '',
+                createdBy: actor,
+                occurredAt: order.createdAt ?? serverTimestamp(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              })
+            );
+          }
         }
 
-        tx.update(orderRef, { inventoryRestored: true, updatedAt: serverTimestamp() });
-        return { restored: true, units };
+        // ── Return the units to stock and record why. ──
+        let restoredUnits = 0;
+        if (restock && !order.inventoryRestored) {
+          for (const entry of entries) {
+            const nextStock = entry.stock + entry.item.quantity;
+            restoredUnits += entry.item.quantity;
+
+            tx.update(entry.ref, { stock: nextStock, updatedAt: serverTimestamp() });
+            tx.set(
+              doc(collection(db, COLLECTIONS.inventoryMovements)),
+              pruneUndefined({
+                productId: entry.item.productId,
+                productTitle: entry.item.title,
+                productSlug: entry.item.slug,
+                type: movementType,
+                quantityChange: entry.item.quantity,
+                stockAfter: nextStock,
+                unitCost: null,
+                totalValue: null,
+                reference: { kind: 'order', id: order.id, label: order.orderId },
+                reason,
+                notes: '',
+                createdBy: actor,
+                occurredAt: serverTimestamp(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              })
+            );
+          }
+        }
+
+        tx.update(orderRef, {
+          status,
+          saleMovementsRecorded: true,
+          // Goods that deliberately did not come back are still "dealt with":
+          // flagging them prevents a later restore silently resurrecting them.
+          inventoryRestored: true,
+          updatedAt: serverTimestamp(),
+        });
+
+        return {
+          order: { ...order, status, saleMovementsRecorded: true, inventoryRestored: true },
+          restoredUnits,
+          saleLines,
+        };
       });
-    }, 'restore inventory');
+    }, 'close order');
   },
 };
 

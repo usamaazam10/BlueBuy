@@ -22,6 +22,7 @@ import { calculateTotals, lineSubtotal } from '@/lib/cart/pricing';
 import { getActiveCurrency } from '@/lib/format';
 import { CHECKOUT_PRICING_CONFIG, buildWhatsAppUrl } from '@/lib/order';
 import { checkoutCustomerSchema } from '@/lib/validations';
+import { AppError } from '@/firebase';
 
 /** Arguments to place an order — the cart contents plus who's buying. */
 export interface PlaceOrderArgs {
@@ -108,8 +109,23 @@ export const orderService = {
     return OrderRepository.getById(id);
   },
 
-  /** Update an order's fulfilment status (admin-only in practice). */
+  /**
+   * Update an order's fulfilment status (admin-only in practice).
+   *
+   * Deliberately refuses `cancelled` and `returned`. Those two statuses have an
+   * inventory consequence — checkout removed the units at placement, so closing
+   * an order must also decide what happens to them and record it in the ledger.
+   * `orderFulfilmentService.updateStatus` does all of that in one transaction;
+   * routing a closure through here would move the status and silently lose the
+   * stock.
+   */
   async updateStatus(id: string, status: OrderStatus): Promise<Order> {
+    if (status === 'cancelled' || status === 'returned') {
+      throw new AppError(
+        'failed-precondition',
+        `Closing an order as “${status}” also returns its stock — use the fulfilment service so inventory and the ledger stay consistent.`
+      );
+    }
     return OrderRepository.updateStatus(id, status);
   },
 

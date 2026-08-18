@@ -5,6 +5,8 @@ import { Loader2, MapPin, Phone, Mail, StickyNote, User } from 'lucide-react';
 import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/admin/ui/confirm-dialog';
+import { Modal } from '@/components/ui/modal';
+import { can, useAuth } from '@/lib/auth';
 import { useCurrency } from '@/hooks/use-currency';
 import { cn } from '@/lib/utils';
 import type { FirestoreDate } from '@/types/models';
@@ -42,7 +44,12 @@ interface OrderDetailProps {
   open: boolean;
   onClose: () => void;
   /** Called when an admin picks a new status. */
-  onUpdateStatus: (order: Order, status: OrderStatus) => void;
+  /**
+   * `restock` applies to a return: true puts the units back into sellable
+   * stock, false records the return without restocking (goods came back
+   * unsellable). Ignored for every other status.
+   */
+  onUpdateStatus: (order: Order, status: OrderStatus, restock?: boolean) => void;
   /** True while a status update is in flight. */
   updating?: boolean;
 }
@@ -77,7 +84,13 @@ function InfoRow({
  */
 export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: OrderDetailProps) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [confirmReturn, setConfirmReturn] = React.useState(false);
   const { formatPrice } = useCurrency();
+  const { user } = useAuth();
+  // Cancelling or returning an order writes stock back and appends ledger
+  // entries, so it needs inventory rights as well as order rights. Showing the
+  // action to someone Firestore will refuse only produces a confusing error.
+  const canCloseOrder = can(user?.role ?? 'viewer', 'inventory.adjust');
   // Orders render in the currency they were placed with, not the store's
   // current one, so a past order never silently changes value.
   const money = (value: number) => formatPrice(value, order?.currency);
@@ -90,8 +103,13 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
     );
   }
 
-  const transitions = nextStatuses(order.status);
+  const closingStatuses: OrderStatus[] = ['cancelled', 'returned'];
+  const transitions = nextStatuses(order.status).filter(
+    (status) => canCloseOrder || !closingStatuses.includes(status)
+  );
   const terminal = isTerminalStatus(order.status);
+  const hiddenClosingActions =
+    !canCloseOrder && nextStatuses(order.status).some((s) => closingStatuses.includes(s));
 
   return (
     <Drawer open={open} onClose={onClose} title={order.orderId} className="max-w-md">
@@ -207,6 +225,7 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
           <div className="flex flex-wrap gap-2">
             {transitions.map((status) => {
               const destructive = status === 'cancelled';
+              const isReturn = status === 'returned';
               return (
                 <Button
                   key={status}
@@ -217,9 +236,11 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
                     destructive && 'border-destructive/40 text-destructive hover:bg-destructive/10'
                   )}
                   disabled={updating}
-                  onClick={() =>
-                    destructive ? setConfirmCancel(true) : onUpdateStatus(order, status)
-                  }
+                  onClick={() => {
+                    if (destructive) return setConfirmCancel(true);
+                    if (isReturn) return setConfirmReturn(true);
+                    return onUpdateStatus(order, status);
+                  }}
                 >
                   {updating ? <Loader2 className="size-4 animate-spin" /> : null}
                   {status === 'cancelled' ? 'Cancel order' : `Mark ${orderStatusLabel(status)}`}
@@ -228,6 +249,12 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
             })}
           </div>
         )}
+        {hiddenClosingActions ? (
+          <p className="text-muted-foreground text-xs">
+            Cancelling or returning an order also moves stock, which your role can&rsquo;t do. Ask
+            an admin or the inventory manager.
+          </p>
+        ) : null}
       </footer>
 
       <ConfirmDialog
@@ -235,9 +262,58 @@ export function OrderDetail({ order, open, onClose, onUpdateStatus, updating }: 
         onClose={() => setConfirmCancel(false)}
         onConfirm={() => onUpdateStatus(order, 'cancelled')}
         title={`Cancel order ${order.orderId}?`}
-        description="This marks the order as cancelled. Stock is not automatically restored. This can't be undone."
+        description="This cancels the order and returns its items to sellable stock, recording the movement in the inventory ledger. This can't be undone."
         confirmLabel="Cancel order"
       />
+
+      {/*
+        A return has two very different inventory outcomes and the system must
+        not guess: goods that come back saleable go straight back on the shelf,
+        goods that come back damaged must not. Both record the sale in the
+        ledger; only one adds the units back.
+      */}
+      <Modal
+        open={confirmReturn}
+        onClose={() => setConfirmReturn(false)}
+        title={`Return order ${order.orderId}?`}
+        className="max-w-md"
+      >
+        <div className="space-y-4 p-5 pt-0">
+          <p className="text-muted-foreground text-sm">
+            What happened to the {order.items.reduce((sum, item) => sum + item.quantity, 0)}{' '}
+            returned unit
+            {order.items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? '' : 's'}?
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="brand"
+              className="rounded-lg"
+              disabled={updating}
+              onClick={() => {
+                setConfirmReturn(false);
+                onUpdateStatus(order, 'returned', true);
+              }}
+            >
+              Back to sellable stock
+            </Button>
+            <Button
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 rounded-lg"
+              disabled={updating}
+              onClick={() => {
+                setConfirmReturn(false);
+                onUpdateStatus(order, 'returned', false);
+              }}
+            >
+              Write off &mdash; came back unsellable
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Either way the order stops counting as revenue and its sale is recorded in the inventory
+            ledger. Only &ldquo;back to sellable stock&rdquo; raises the stock level.
+          </p>
+        </div>
+      </Modal>
     </Drawer>
   );
 }
