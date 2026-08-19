@@ -52,6 +52,14 @@ export const metadata: Metadata = {
     description: SITE_CONFIG.description,
     images: [BRAND_ASSETS.ogImage],
   },
+  // Meta (Facebook) Business Manager domain verification. Must be a real
+  // <meta> tag in the static <head> — Meta's crawler ignores anything injected
+  // by client JS — so it lives here rather than in a client component.
+  verification: {
+    other: {
+      'facebook-domain-verification': 'xqgw2alcyngybfcay4bahe08mh7k2g',
+    },
+  },
 };
 
 export const viewport: Viewport = {
