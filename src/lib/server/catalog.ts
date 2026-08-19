@@ -34,6 +34,45 @@ import type {
   Banner,
 } from '@/types/cms';
 
+/**
+ * Convert Firestore `Timestamp` values into plain `Date`s, recursively.
+ *
+ * The root layout is a Server Component and passes this module's output as
+ * props into `QueryProvider`, a Client Component. React can only serialise
+ * plain values across that boundary, and a `Timestamp` is a class instance with
+ * a `toJSON` method — so every CMS document with a `createdAt`/`updatedAt`
+ * logged "Only plain objects can be passed to Client Components" in dev, two
+ * warnings per document, drowning the console.
+ *
+ * `Date` **is** serialisable by the RSC payload and is already part of
+ * `FirestoreDate`, so converting (rather than stripping) keeps the documents
+ * type-correct and leaves `toDate()`-free readers working unchanged.
+ *
+ * Duck-typed rather than `instanceof Timestamp`: a document can arrive from a
+ * different copy of the SDK, and an identity check would silently miss it.
+ */
+function toPlainDates<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Date) return value;
+
+  const candidate = value as { toDate?: unknown; seconds?: unknown; nanoseconds?: unknown };
+  if (
+    typeof candidate.toDate === 'function' &&
+    typeof candidate.seconds === 'number' &&
+    typeof candidate.nanoseconds === 'number'
+  ) {
+    return (candidate.toDate as () => Date)() as unknown as T;
+  }
+
+  if (Array.isArray(value)) return value.map((item) => toPlainDates(item)) as unknown as T;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = toPlainDates(val);
+  }
+  return out as T;
+}
+
 let catalogPromise: Promise<StoreProduct[]> | null = null;
 let settingsPromise: Promise<SiteSettings | null> | null = null;
 let cmsPromise: Promise<BuildTimeCms> | null = null;
@@ -52,7 +91,8 @@ async function safeList<T>(fn: () => Promise<T[]>, label: string): Promise<T[]> 
 /** Best-effort site settings read — prerendering must not fail without them. */
 async function safeSettings(): Promise<SiteSettings | null> {
   try {
-    return await SiteSettingsRepository.get();
+    // Also passed into a Client Component by the root layout — see `toPlainDates`.
+    return toPlainDates(await SiteSettingsRepository.get());
   } catch (error) {
     console.warn('[catalog] optional read "site settings" failed — using defaults:', error);
     return null;
@@ -114,14 +154,17 @@ export function getCmsContent(): Promise<BuildTimeCms> {
       safeSingleton(() => NavigationRepository.listActive(), 'navigation'),
       safeSingleton(() => SocialLinkRepository.listActive(), 'social links'),
       safeSingleton(() => BannerRepository.listActive(), 'banners'),
-    ]).then(([homepage, footer, contact, navigation, socialLinks, banners]) => ({
-      homepage,
-      footer,
-      contact,
-      navigation,
-      socialLinks,
-      banners,
-    }));
+    ]).then(([homepage, footer, contact, navigation, socialLinks, banners]) =>
+      // Everything here crosses into a Client Component — see `toPlainDates`.
+      toPlainDates({
+        homepage,
+        footer,
+        contact,
+        navigation,
+        socialLinks,
+        banners,
+      })
+    );
   }
   return cmsPromise;
 }
