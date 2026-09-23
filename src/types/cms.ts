@@ -126,18 +126,6 @@ export interface HeroContent {
   backgroundImage: string;
 }
 
-/** One slide of the homepage hero carousel. */
-export interface HeroSlide {
-  id: string;
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  primaryCta: CmsLink;
-  secondaryCta: CmsLink;
-  /** Background image URL; empty renders the built-in geometric background. */
-  backgroundImage: string;
-}
-
 /** Promotional banner section (the storefront's CTA band). */
 export interface PromoBanner {
   enabled: boolean;
@@ -157,10 +145,12 @@ export interface HomepageSeo {
 export interface Homepage {
   hero: HeroContent;
   /**
-   * Slides for the auto-rotating homepage hero carousel (3–5 recommended).
-   * When empty, the single `hero` band above renders instead.
+   * Ordered product ids to showcase in the auto-rotating homepage hero
+   * carousel (3–5 recommended). Empty = auto (products flagged `featured`,
+   * backfilled with the rest). The `hero` band above renders instead only
+   * when the catalogue has no products at all.
    */
-  heroSlides: HeroSlide[];
+  heroProductIds: string[];
   /**
    * Ordered category ids to feature. Empty = auto (show all active
    * categories, sorted by their own `sortOrder`).
@@ -185,36 +175,7 @@ export const DEFAULT_HOMEPAGE: Homepage = {
     secondaryCta: { label: 'Explore categories', href: '/#categories' },
     backgroundImage: '',
   },
-  heroSlides: [
-    {
-      id: 'slide-1',
-      eyebrow: 'Shop the catalogue',
-      title: 'Discover products you’ll love',
-      subtitle:
-        'Explore a growing selection of products from trusted brands and the BlueBuy Collection.',
-      primaryCta: { label: 'Shop now', href: '/products' },
-      secondaryCta: { label: 'Explore categories', href: '/#categories' },
-      backgroundImage: '',
-    },
-    {
-      id: 'slide-2',
-      eyebrow: 'New arrivals',
-      title: 'Fresh finds, every week',
-      subtitle: 'Curated picks land regularly — be the first to shop what just came in.',
-      primaryCta: { label: 'See what’s new', href: '/products?sort=newest' },
-      secondaryCta: { label: '', href: '' },
-      backgroundImage: '',
-    },
-    {
-      id: 'slide-3',
-      eyebrow: 'BlueBuy Collection',
-      title: 'Quality, without the markup',
-      subtitle: 'Our own line of products, priced fairly and backed by our team.',
-      primaryCta: { label: 'Shop the collection', href: '/products?brand=bluebuy-collection' },
-      secondaryCta: { label: '', href: '' },
-      backgroundImage: '',
-    },
-  ],
+  heroProductIds: [],
   featuredCategoryIds: [],
   featuredProductIds: [],
   promoBanner: {

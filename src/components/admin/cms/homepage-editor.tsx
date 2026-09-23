@@ -4,25 +4,11 @@ import { Field, Input, Textarea, Select, Label, Switch } from '@/components/admi
 import { HomepageRepository } from '@/repositories';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useStoreCategories, useStoreProducts } from '@/hooks/queries';
-import type { Homepage, HeroSlide } from '@/types/cms';
+import type { Homepage } from '@/types/cms';
 import { useCmsSingleton } from './use-cms-singleton';
 import { CmsFormShell, SectionCard } from './cms-form-shell';
 import { LinkFields } from './link-fields';
 import { RepeatableList } from './repeatable-list';
-import { HeroSlideImageField } from './hero-slide-image-field';
-
-/** A blank slide, seeded when "Add slide" is clicked. */
-function newSlide(): HeroSlide {
-  return {
-    id: `slide-${Date.now()}`,
-    eyebrow: '',
-    title: '',
-    subtitle: '',
-    primaryCta: { label: '', href: '' },
-    secondaryCta: { label: '', href: '' },
-    backgroundImage: '',
-  };
-}
 
 /** Editor for the `homepage` singleton — hero, featured content, promo, newsletter, SEO. */
 export function HomepageEditor() {
@@ -50,61 +36,32 @@ export function HomepageEditor() {
       {draft && (
         <>
           <SectionCard
-            title="Hero slides"
-            description="Auto-rotating slides at the top of the homepage (3–5 recommended). Leave empty to show the single hero band below instead."
+            title="Hero products"
+            description="Products showcased in the auto-rotating carousel at the top of the homepage (3–5 recommended). Leave empty to auto-select featured products."
           >
             <RepeatableList
-              items={draft.heroSlides}
-              onChange={(heroSlides) => patch({ heroSlides })}
-              newItem={newSlide}
-              addLabel="Add slide"
+              items={draft.heroProductIds}
+              onChange={(heroProductIds) => patch({ heroProductIds })}
+              newItem={() => ''}
+              addLabel="Add product"
               max={5}
-              emptyLabel="No slides yet — the hero band below will show instead."
-              renderRow={(slideItem, update) => (
-                <div className="flex flex-col gap-3">
-                  <Field label="Eyebrow" hint="Small pill above the title.">
-                    <Input
-                      value={slideItem.eyebrow}
-                      onChange={(e) => update({ ...slideItem, eyebrow: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Title" required>
-                    <Textarea
-                      value={slideItem.title}
-                      onChange={(e) => update({ ...slideItem, title: e.target.value })}
-                      className="min-h-16"
-                    />
-                  </Field>
-                  <Field label="Subtitle">
-                    <Textarea
-                      value={slideItem.subtitle}
-                      onChange={(e) => update({ ...slideItem, subtitle: e.target.value })}
-                    />
-                  </Field>
-                  <LinkFields
-                    idPrefix={`${slideItem.id}-primary`}
-                    labelText="Primary CTA"
-                    value={slideItem.primaryCta}
-                    onChange={(primaryCta) => update({ ...slideItem, primaryCta })}
-                  />
-                  <LinkFields
-                    idPrefix={`${slideItem.id}-secondary`}
-                    labelText="Secondary CTA"
-                    value={slideItem.secondaryCta}
-                    onChange={(secondaryCta) => update({ ...slideItem, secondaryCta })}
-                  />
-                  <HeroSlideImageField
-                    value={slideItem.backgroundImage}
-                    onChange={(backgroundImage) => update({ ...slideItem, backgroundImage })}
-                  />
-                </div>
+              emptyLabel="No products selected — featured products will show automatically."
+              renderRow={(id, update) => (
+                <Select value={id} onChange={(e) => update(e.target.value)}>
+                  <option value="">— Select a product —</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.title}
+                    </option>
+                  ))}
+                </Select>
               )}
             />
           </SectionCard>
 
           <SectionCard
             title="Hero (fallback)"
-            description="Shown only when there are no hero slides above."
+            description="Shown only when the catalogue has no products at all."
           >
             <Field label="Eyebrow" htmlFor="hero-eyebrow" hint="Small pill above the title.">
               <Input
