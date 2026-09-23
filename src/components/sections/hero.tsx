@@ -8,7 +8,6 @@ import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProductImage } from '@/components/product/product-image';
-import { AddToCartButton } from '@/components/product/add-to-cart-button';
 import { useStoreProducts, useHomepage } from '@/hooks/queries';
 import { useCurrency } from '@/hooks/use-currency';
 import { cn } from '@/lib/utils';
@@ -16,7 +15,7 @@ import type { StoreProduct } from '@/types/store';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 /** How long each slide stays up before auto-advancing. */
-const SLIDE_DURATION_MS = 6000;
+const SLIDE_DURATION_MS = 5000;
 /** How many products the carousel shows at most. */
 const MAX_SLIDES = 5;
 
@@ -77,12 +76,12 @@ export function Hero() {
   }, [index, slides.length]);
 
   const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
+    hidden: { opacity: 0, y: 12 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } },
   };
   const container = {
     hidden: {},
-    show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+    show: { transition: { staggerChildren: 0.06 } },
   };
 
   // No products at all (a brand-new, unstocked store) — fall back to the
@@ -90,56 +89,31 @@ export function Hero() {
   if (!product) {
     const hero = homepage!.hero;
     return (
-      <section className="relative overflow-hidden">
-        <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)] opacity-60" />
-        <div
-          aria-hidden
-          className="bg-brand/20 pointer-events-none absolute -top-24 left-1/2 size-[520px] -translate-x-1/2 rounded-full blur-[120px]"
-        />
-        <Container className="relative py-20 sm:py-28 lg:py-32">
-          <motion.div
-            variants={reduceMotion ? undefined : container}
-            initial={reduceMotion ? false : 'hidden'}
-            animate="show"
-            className="mx-auto flex max-w-3xl flex-col items-center text-center"
-          >
+      <section className="py-8 sm:py-10">
+        <Container>
+          <div className="border-border bg-secondary/20 relative overflow-hidden rounded-3xl border px-6 py-10 text-center sm:px-10 sm:py-14">
             {hero.eyebrow && (
-              <motion.div variants={item}>
-                <span className="bg-secondary/70 text-foreground border-border inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur">
-                  <Sparkles className="text-brand size-4" />
-                  {hero.eyebrow}
-                </span>
-              </motion.div>
+              <span className="bg-background/70 text-foreground border-border mx-auto inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium backdrop-blur">
+                <Sparkles className="text-brand size-4" />
+                {hero.eyebrow}
+              </span>
             )}
-            <motion.h1
-              variants={item}
-              className="font-display mt-6 text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl"
-            >
+            <h1 className="font-display mt-5 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
               {hero.title}
-            </motion.h1>
+            </h1>
             {hero.subtitle && (
-              <motion.p
-                variants={item}
-                className="text-muted-foreground mt-6 max-w-xl text-lg text-pretty sm:text-xl"
-              >
+              <p className="text-muted-foreground mx-auto mt-4 max-w-xl text-pretty">
                 {hero.subtitle}
-              </motion.p>
+              </p>
             )}
-            <motion.div variants={item} className="mt-9 flex flex-col gap-3 sm:flex-row">
-              {hero.primaryCta.label && (
-                <Button asChild variant="brand" size="lg">
-                  <Link href={hero.primaryCta.href || '/'}>
-                    {hero.primaryCta.label} <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
-              )}
-              {hero.secondaryCta.label && (
-                <Button asChild variant="outline" size="lg">
-                  <Link href={hero.secondaryCta.href || '/'}>{hero.secondaryCta.label}</Link>
-                </Button>
-              )}
-            </motion.div>
-          </motion.div>
+            {hero.primaryCta.label && (
+              <Button asChild variant="brand" className="mt-6">
+                <Link href={hero.primaryCta.href || '/'}>
+                  {hero.primaryCta.label} <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            )}
+          </div>
         </Container>
       </section>
     );
@@ -148,145 +122,145 @@ export function Hero() {
   const href = `/product/${product.slug}`;
 
   return (
-    <section
-      className="relative overflow-hidden"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
-    >
-      <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)] opacity-60" />
-      <div
-        aria-hidden
-        className="bg-brand/20 pointer-events-none absolute -top-24 left-1/2 size-[520px] -translate-x-1/2 rounded-full blur-[120px]"
-      />
-
-      <Container className="relative py-14 sm:py-20 lg:py-24">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={product.id}
-            variants={reduceMotion ? undefined : container}
-            initial={reduceMotion ? false : 'hidden'}
-            animate="show"
-            exit={reduceMotion ? undefined : { opacity: 0 }}
-            className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16"
-          >
-            {/* Text column */}
-            <div className="flex flex-col items-start text-left">
-              <motion.div variants={item}>
-                <span className="bg-secondary/70 text-foreground border-border inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur">
-                  <Sparkles className="text-brand size-4" />
-                  {product.badge ?? 'Featured'}
-                </span>
-              </motion.div>
-
-              <motion.h1
-                variants={item}
-                className="font-display mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl"
-              >
-                <Link href={href} className="hover:text-brand transition-colors">
-                  {product.title}
-                </Link>
-              </motion.h1>
-
-              {product.shortDescription && (
-                <motion.p
+    <section className="py-6 sm:py-8">
+      <Container>
+        <div
+          className="border-border bg-secondary/20 relative overflow-hidden rounded-3xl border p-6 sm:p-8 lg:p-10"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={product.id}
+              variants={reduceMotion ? undefined : container}
+              initial={reduceMotion ? false : 'hidden'}
+              animate="show"
+              exit={reduceMotion ? undefined : { opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 items-center gap-6 sm:grid-cols-[1fr_auto] sm:gap-8"
+            >
+              {/* Text */}
+              <div className="flex flex-col items-start gap-3 text-left">
+                <motion.span
                   variants={item}
-                  className="text-muted-foreground mt-5 max-w-lg text-lg text-pretty"
+                  className="bg-background/80 text-foreground border-border inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
                 >
-                  {product.shortDescription}
-                </motion.p>
-              )}
+                  <Sparkles className="text-brand size-3.5" />
+                  {product.badge ?? 'Featured'}
+                </motion.span>
 
-              <motion.div variants={item} className="mt-6 flex items-baseline gap-3">
-                <span className="text-3xl font-semibold">{formatPrice(product.price)}</span>
-                {product.compareAtPrice && (
-                  <span className="text-muted-foreground text-lg line-through">
-                    {formatPrice(product.compareAtPrice)}
-                  </span>
+                <motion.h1 variants={item}>
+                  <Link
+                    href={href}
+                    className="font-display hover:text-brand line-clamp-2 text-xl font-semibold tracking-tight text-balance transition-colors sm:text-2xl lg:text-3xl"
+                  >
+                    {product.title}
+                  </Link>
+                </motion.h1>
+
+                {product.shortDescription && (
+                  <motion.p
+                    variants={item}
+                    className="text-muted-foreground hidden max-w-md text-sm text-pretty sm:line-clamp-2 md:block"
+                  >
+                    {product.shortDescription}
+                  </motion.p>
                 )}
-              </motion.div>
 
-              <motion.div variants={item} className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <AddToCartButton
-                  product={product}
-                  outOfStock={product.stock <= 0}
-                  openDrawerOnAdd
-                  size="lg"
-                />
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/products">Browse all products</Link>
-                </Button>
-              </motion.div>
-            </div>
+                <motion.div variants={item} className="flex items-baseline gap-2">
+                  <span className="text-lg font-semibold sm:text-xl">
+                    {formatPrice(product.price)}
+                  </span>
+                  {product.compareAtPrice && (
+                    <span className="text-muted-foreground text-sm line-through">
+                      {formatPrice(product.compareAtPrice)}
+                    </span>
+                  )}
+                </motion.div>
 
-            {/* Product image */}
-            <motion.div variants={item} className="mx-auto w-full max-w-sm lg:max-w-none">
-              <Link
-                href={href}
-                className="group focus-visible:ring-ring block outline-none focus-visible:ring-2"
-              >
-                <div className="bg-card border-border shadow-foreground/5 relative aspect-square overflow-hidden rounded-3xl border shadow-xl">
-                  <ProductImage
-                    src={product.thumbnail}
-                    alt={product.title}
-                    seed={product.slug}
-                    accent={product.accent}
-                    detailed
-                    className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
-                  />
+                <motion.div variants={item}>
+                  <Button asChild variant="brand" size="sm">
+                    <Link href={href}>
+                      Shop now <ArrowRight className="size-4" />
+                    </Link>
+                  </Button>
+                </motion.div>
+              </div>
+
+              {/* Product image, contained — not a full-bleed background, so it
+                  never fights with any text printed on the photo itself. */}
+              <motion.div variants={item} className="mx-auto shrink-0">
+                <Link
+                  href={href}
+                  className="group focus-visible:ring-ring relative block size-32 outline-none focus-visible:ring-2 sm:size-40 lg:size-48"
+                >
+                  <div className="bg-card border-border relative h-full w-full overflow-hidden rounded-2xl border">
+                    <ProductImage
+                      src={product.thumbnail}
+                      alt={product.title}
+                      seed={product.slug}
+                      accent={product.accent}
+                      className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
+                    />
+                  </div>
                   {product.badge && (
                     <Badge
                       variant={BADGE_VARIANT[product.badge]}
-                      className="absolute top-4 left-4 shadow-sm"
+                      className="absolute top-2 left-2 shadow-sm"
                     >
                       {product.badge}
                     </Badge>
                   )}
-                </div>
-              </Link>
+                </Link>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        </AnimatePresence>
+          </AnimatePresence>
 
-        {isCarousel && (
-          <div className="mt-10 flex items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-              aria-label="Previous product"
-              className="text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:ring-ring hidden size-9 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
-            >
-              <ArrowLeft className="size-4" />
-            </button>
+          {isCarousel && (
+            <div className="mt-6 flex items-center justify-center gap-4 sm:justify-start">
+              <button
+                type="button"
+                onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
+                aria-label="Previous product"
+                className="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-ring hidden size-8 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
+              >
+                <ArrowLeft className="size-4" />
+              </button>
 
-            <div className="flex items-center gap-2" role="tablist" aria-label="Featured products">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={i === index}
-                  aria-label={`Show ${s.title}`}
-                  onClick={() => setIndex(i)}
-                  className={cn(
-                    'h-1.5 rounded-full transition-all',
-                    i === index ? 'bg-brand w-6' : 'bg-border hover:bg-muted-foreground w-1.5'
-                  )}
-                />
-              ))}
+              <div
+                className="flex items-center gap-1.5"
+                role="tablist"
+                aria-label="Featured products"
+              >
+                {slides.map((s, i) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={i === index}
+                    aria-label={`Show ${s.title}`}
+                    onClick={() => setIndex(i)}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all',
+                      i === index ? 'bg-brand w-5' : 'bg-border hover:bg-muted-foreground w-1.5'
+                    )}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIndex((i) => (i + 1) % slides.length)}
+                aria-label="Next product"
+                className="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-ring hidden size-8 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
+              >
+                <ArrowRight className="size-4" />
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIndex((i) => (i + 1) % slides.length)}
-              aria-label="Next product"
-              className="text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:ring-ring hidden size-9 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
-            >
-              <ArrowRight className="size-4" />
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </Container>
     </section>
   );
