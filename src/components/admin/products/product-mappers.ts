@@ -107,14 +107,11 @@ function productImageToGallery(image: Product['gallery'][number]): GalleryImage 
 
 /** Convert a stored `Product` into editable form values (for the edit page). */
 export function productToFormValues(product: Product): ProductFormValues {
-  const specs =
-    product.specifications.length > 0
-      ? product.specifications.map((spec, index) => ({
-          id: `spec-${index}`,
-          label: spec.label,
-          value: spec.value,
-        }))
-      : [{ id: 'spec-0', label: '', value: '' }];
+  const specs = product.specifications.map((spec, index) => ({
+    id: `spec-${index}`,
+    label: spec.label,
+    value: spec.value,
+  }));
 
   return {
     title: product.title,

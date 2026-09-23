@@ -43,7 +43,9 @@ export function SectionTitle({
       {eyebrow && (
         <span className="text-brand text-sm font-semibold tracking-wide uppercase">{eyebrow}</span>
       )}
-      <Heading className="text-3xl font-semibold text-balance sm:text-4xl">{title}</Heading>
+      <Heading className="font-display text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        {title}
+      </Heading>
       {description && (
         <p className="text-muted-foreground text-base text-pretty sm:text-lg">{description}</p>
       )}

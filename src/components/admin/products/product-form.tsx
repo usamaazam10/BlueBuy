@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/admin/ui/breadcrumb';
 import { Field, Input, Select, Switch, Label } from '@/components/admin/ui/control';
@@ -127,13 +127,6 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
     const tag = raw.trim();
     if (!tag || values.tags.includes(tag)) return;
     set('tags', [...values.tags, tag]);
-  }
-
-  function updateSpec(id: string, patch: Partial<ProductFormValues['specs'][number]>) {
-    set(
-      'specs',
-      values.specs.map((spec) => (spec.id === id ? { ...spec, ...patch } : spec))
-    );
   }
 
   const thumbnail = values.images[0];
@@ -398,63 +391,6 @@ export function ProductForm({ mode, initial, productId }: ProductFormProps) {
                   />
                 </div>
               </Field>
-            </div>
-          </Section>
-
-          <Section
-            title="Specifications"
-            description="Technical details shown on the product page."
-          >
-            <div className="flex flex-col gap-2">
-              {values.specs.map((spec) => (
-                <div key={spec.id} className="flex items-center gap-2">
-                  <Input
-                    aria-label="Specification label"
-                    value={spec.label}
-                    onChange={(e) => updateSpec(spec.id, { label: e.target.value })}
-                    placeholder="Label (e.g. Battery)"
-                    className="flex-1"
-                    disabled={submitting}
-                  />
-                  <Input
-                    aria-label="Specification value"
-                    value={spec.value}
-                    onChange={(e) => updateSpec(spec.id, { value: e.target.value })}
-                    placeholder="Value (e.g. 40 hours)"
-                    className="flex-1"
-                    disabled={submitting}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Remove specification"
-                    onClick={() =>
-                      set(
-                        'specs',
-                        values.specs.filter((s) => s.id !== spec.id)
-                      )
-                    }
-                    className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-lg"
-                onClick={() =>
-                  set('specs', [
-                    ...values.specs,
-                    { id: `spec-${Date.now()}`, label: '', value: '' },
-                  ])
-                }
-              >
-                <Plus className="size-4" /> Add specification
-              </Button>
             </div>
           </Section>
 

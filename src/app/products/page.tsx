@@ -16,7 +16,9 @@ export default function ProductsPage() {
     <Container className="py-12 sm:py-16">
       <header className="mb-10 flex max-w-2xl flex-col gap-3">
         <span className="text-brand text-sm font-semibold tracking-wide uppercase">Shop</span>
-        <h1 className="text-4xl font-semibold sm:text-5xl">All products</h1>
+        <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+          All products
+        </h1>
         <p className="text-muted-foreground text-lg">
           Search the catalogue, or narrow it down by category and brand.
         </p>

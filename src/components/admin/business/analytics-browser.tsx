@@ -47,18 +47,37 @@ import {
   trafficSummary,
   zeroResultSearches,
 } from '@/lib/business';
+import type { DateRange } from '@/lib/business/date-range';
 import { MetricCard, DataQualityNote } from './metric-card';
 import { BreakdownTable } from './breakdown-table';
-import { DateRangePicker, useDateRange } from './date-range-picker';
 import { ExportButton } from './export-button';
 import { LineChart, RankBars } from './charts';
+
+/** How far visitor traffic is allowed to be windowed on this page. */
+const VISITOR_WINDOWS: { value: string; label: string; ms: number }[] = [
+  { value: 'hour', label: 'Last hour', ms: 60 * 60 * 1000 },
+  { value: 'day', label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000 },
+  { value: 'week', label: 'Last 7 days', ms: 7 * 24 * 60 * 60 * 1000 },
+  { value: 'month', label: 'Last 30 days', ms: 30 * 24 * 60 * 60 * 1000 },
+];
+
+/** A rolling window ending now, e.g. "the last hour" rather than "today". */
+function useVisitorWindow(initial: string) {
+  const [value, setValue] = React.useState(initial);
+  const range = React.useMemo<DateRange & { label: string }>(() => {
+    const window = VISITOR_WINDOWS.find((w) => w.value === value) ?? VISITOR_WINDOWS[3];
+    const end = new Date();
+    return { start: new Date(end.getTime() - window.ms), end, label: window.label };
+  }, [value]);
+  return { value, setValue, range };
+}
 
 export function AnalyticsBrowser() {
   const { user } = useAuth();
   const canRebuild = can(user?.role ?? 'viewer', 'settings.manage');
 
   const toast = useToast();
-  const dates = useDateRange('last_30_days');
+  const dates = useVisitorWindow('month');
   const windowQuery = useAnalyticsWindow(dates.range);
   const categoriesQuery = useCategoriesQuery();
   const rebuild = useRebuildAnalyticsSummaries();
@@ -118,7 +137,18 @@ export function AnalyticsBrowser() {
         description="Traffic, conversion and search behaviour — measured on your storefront."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <DateRangePicker state={dates} />
+            <select
+              value={dates.value}
+              onChange={(e) => dates.setValue(e.target.value)}
+              aria-label="Time period"
+              className="border-border bg-card focus-visible:ring-ring h-9 rounded-lg border px-3 text-sm outline-none focus-visible:ring-2"
+            >
+              {VISITOR_WINDOWS.map((window) => (
+                <option key={window.value} value={window.value}>
+                  {window.label}
+                </option>
+              ))}
+            </select>
             {canRebuild && (
               <Button
                 size="sm"

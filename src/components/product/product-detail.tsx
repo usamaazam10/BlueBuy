@@ -139,7 +139,9 @@ export function ProductDetail({ slug, initialProduct, initialRelated }: ProductD
                   <Badge variant={BADGE_VARIANT[product.badge]}>{product.badge}</Badge>
                 )}
               </div>
-              <h1 className="text-3xl font-semibold sm:text-4xl">{product.title}</h1>
+              <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+                {product.title}
+              </h1>
               <Rating value={product.rating} reviewCount={product.reviewCount} size="md" />
             </div>
 

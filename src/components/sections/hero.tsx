@@ -1,49 +1,49 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
-import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
-import { ProductImage } from '@/components/product/product-image';
-import { useStoreProducts, useHomepage } from '@/hooks/queries';
-import { deriveAccent } from '@/lib/mappers/store';
+import { useHomepage } from '@/hooks/queries';
+import { cn } from '@/lib/utils';
+import type { HeroContent, HeroSlide } from '@/types/cms';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
+/** How long each slide stays up before auto-advancing. */
+const SLIDE_DURATION_MS = 6500;
 
-/**
- * Purely decorative, abstract tiles used before catalogue data arrives (or when
- * the store has no products yet). These are NOT fake products — they render the
- * geometric `ProductMedia` art from neutral seeds, so nothing implies a listing
- * that doesn't exist.
- */
-const DECORATIVE_TILES = ['tile-a', 'tile-b', 'tile-c'].map((seed) => ({
-  key: seed,
-  src: undefined as string | undefined,
-  accent: deriveAccent(seed),
-  seed,
-  title: undefined as string | undefined,
-  href: undefined as string | undefined,
-}));
+/** Normalizes the legacy singular `hero` object into a one-slide array. */
+function slidesFor(hero: HeroContent, heroSlides: HeroSlide[]): HeroSlide[] {
+  if (heroSlides.length > 0) return heroSlides;
+  return [{ id: 'hero', ...hero }];
+}
 
 export function Hero() {
   const reduceMotion = useReducedMotion();
-  const { data } = useStoreProducts();
   const { data: homepage } = useHomepage();
-  const hero = homepage!.hero;
+  const slides = slidesFor(homepage!.hero, homepage!.heroSlides);
+  const isCarousel = slides.length > 1;
 
-  // Real, shoppable products; fall back to placeholder art before data loads.
-  const tiles =
-    data.length > 0
-      ? data.slice(0, 3).map((product) => ({
-          key: product.id,
-          src: product.thumbnail || undefined,
-          accent: product.accent,
-          seed: product.slug,
-          title: product.title,
-          href: `/product/${product.slug}`,
-        }))
-      : DECORATIVE_TILES;
+  const [index, setIndex] = React.useState(0);
+  const [paused, setPaused] = React.useState(false);
+  const slide = slides[index] ?? slides[0];
+
+  // Auto-advance while there's more than one slide and the visitor hasn't
+  // paused it by hovering/focusing the carousel.
+  React.useEffect(() => {
+    if (!isCarousel || paused) return;
+    const timer = window.setInterval(() => {
+      setIndex((i) => (i + 1) % slides.length);
+    }, SLIDE_DURATION_MS);
+    return () => window.clearInterval(timer);
+  }, [isCarousel, paused, slides.length]);
+
+  // Keep the index in range if the admin removes slides while viewing.
+  React.useEffect(() => {
+    if (index >= slides.length) setIndex(0);
+  }, [index, slides.length]);
 
   const container = {
     hidden: {},
@@ -55,15 +55,28 @@ export function Hero() {
   };
 
   return (
-    <section className="relative overflow-hidden">
+    <section
+      className="relative overflow-hidden"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
       {/* Optional CMS background image, layered behind the geometric default. */}
-      {hero.backgroundImage && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_80%)] bg-cover bg-center opacity-15"
-          style={{ backgroundImage: `url(${hero.backgroundImage})` }}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {slide.backgroundImage && (
+          <motion.div
+            key={slide.id}
+            aria-hidden
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 0.15 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: 0.6, ease: EASE }}
+            className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_80%)] bg-cover bg-center"
+            style={{ backgroundImage: `url(${slide.backgroundImage})` }}
+          />
+        )}
+      </AnimatePresence>
       {/* Geometric background — no stock imagery */}
       <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)] opacity-60" />
       <div
@@ -72,95 +85,95 @@ export function Hero() {
       />
 
       <Container className="relative py-20 sm:py-28 lg:py-32">
-        <motion.div
-          variants={reduceMotion ? undefined : container}
-          initial={reduceMotion ? false : 'hidden'}
-          animate="show"
-          className="mx-auto flex max-w-3xl flex-col items-center text-center"
-        >
-          {hero.eyebrow && (
-            <motion.div variants={item}>
-              <span className="bg-secondary/70 text-foreground border-border inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur">
-                <Sparkles className="text-brand size-4" />
-                {hero.eyebrow}
-              </span>
-            </motion.div>
-          )}
-
-          <motion.h1
-            variants={item}
-            className="mt-6 text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl"
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={slide.id}
+            variants={reduceMotion ? undefined : container}
+            initial={reduceMotion ? false : 'hidden'}
+            animate="show"
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            className="mx-auto flex max-w-3xl flex-col items-center text-center"
           >
-            {hero.title}
-          </motion.h1>
-
-          {hero.subtitle && (
-            <motion.p
-              variants={item}
-              className="text-muted-foreground mt-6 max-w-xl text-lg text-pretty sm:text-xl"
-            >
-              {hero.subtitle}
-            </motion.p>
-          )}
-
-          <motion.div variants={item} className="mt-9 flex flex-col gap-3 sm:flex-row">
-            {hero.primaryCta.label && (
-              <Button asChild variant="brand" size="lg">
-                <Link href={hero.primaryCta.href || '/'}>
-                  {hero.primaryCta.label} <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            )}
-            {hero.secondaryCta.label && (
-              <Button asChild variant="outline" size="lg">
-                <Link href={hero.secondaryCta.href || '/'}>{hero.secondaryCta.label}</Link>
-              </Button>
-            )}
-          </motion.div>
-        </motion.div>
-
-        {/* Real products from the catalogue — shoppable, not decoration. Falls
-            back to abstract tiles only while loading / before the store has
-            stock, and those are inert and hidden from assistive tech. */}
-        <div className="mt-16 hidden justify-center gap-6 lg:flex">
-          {tiles.map((tile, i) => {
-            const media = (
-              <ProductImage
-                src={tile.src}
-                alt={tile.title ?? ''}
-                seed={tile.seed}
-                accent={tile.accent}
-                className="aspect-[4/5] w-full"
-              />
-            );
-            return (
-              <motion.div
-                key={tile.key}
-                initial={reduceMotion ? false : { opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, ease: EASE, delay: 0.5 + i * 0.12 }}
-                className="bg-card border-border shadow-foreground/5 w-64 overflow-hidden rounded-3xl border shadow-xl"
-                style={{ transform: `translateY(${i === 1 ? '-24px' : '0'})` }}
-                aria-hidden={tile.href ? undefined : true}
-              >
-                {tile.href ? (
-                  <Link
-                    href={tile.href}
-                    className="focus-visible:ring-ring block outline-none focus-visible:ring-2"
-                  >
-                    {media}
-                    <span className="flex flex-col gap-0.5 p-4 text-left">
-                      <span className="truncate text-sm font-medium">{tile.title}</span>
-                      <span className="text-muted-foreground text-xs">Shop now</span>
-                    </span>
-                  </Link>
-                ) : (
-                  <div className="pointer-events-none">{media}</div>
-                )}
+            {slide.eyebrow && (
+              <motion.div variants={item}>
+                <span className="bg-secondary/70 text-foreground border-border inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium backdrop-blur">
+                  <Sparkles className="text-brand size-4" />
+                  {slide.eyebrow}
+                </span>
               </motion.div>
-            );
-          })}
-        </div>
+            )}
+
+            <motion.h1
+              variants={item}
+              className="font-display mt-6 text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl"
+            >
+              {slide.title}
+            </motion.h1>
+
+            {slide.subtitle && (
+              <motion.p
+                variants={item}
+                className="text-muted-foreground mt-6 max-w-xl text-lg text-pretty sm:text-xl"
+              >
+                {slide.subtitle}
+              </motion.p>
+            )}
+
+            <motion.div variants={item} className="mt-9 flex flex-col gap-3 sm:flex-row">
+              {slide.primaryCta.label && (
+                <Button asChild variant="brand" size="lg">
+                  <Link href={slide.primaryCta.href || '/'}>
+                    {slide.primaryCta.label} <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              )}
+              {slide.secondaryCta.label && (
+                <Button asChild variant="outline" size="lg">
+                  <Link href={slide.secondaryCta.href || '/'}>{slide.secondaryCta.label}</Link>
+                </Button>
+              )}
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+
+        {isCarousel && (
+          <div className="mt-12 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
+              aria-label="Previous slide"
+              className="text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:ring-ring hidden size-9 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+
+            <div className="flex items-center gap-2" role="tablist" aria-label="Hero slides">
+              {slides.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Show slide ${i + 1} of ${slides.length}`}
+                  onClick={() => setIndex(i)}
+                  className={cn(
+                    'h-1.5 rounded-full transition-all',
+                    i === index ? 'bg-brand w-6' : 'bg-border hover:bg-muted-foreground w-1.5'
+                  )}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIndex((i) => (i + 1) % slides.length)}
+              aria-label="Next slide"
+              className="text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:ring-ring hidden size-9 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
+            >
+              <ArrowRight className="size-4" />
+            </button>
+          </div>
+        )}
       </Container>
     </section>
   );

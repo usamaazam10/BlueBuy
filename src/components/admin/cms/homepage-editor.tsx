@@ -4,11 +4,25 @@ import { Field, Input, Textarea, Select, Label, Switch } from '@/components/admi
 import { HomepageRepository } from '@/repositories';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useStoreCategories, useStoreProducts } from '@/hooks/queries';
-import type { Homepage } from '@/types/cms';
+import type { Homepage, HeroSlide } from '@/types/cms';
 import { useCmsSingleton } from './use-cms-singleton';
 import { CmsFormShell, SectionCard } from './cms-form-shell';
 import { LinkFields } from './link-fields';
 import { RepeatableList } from './repeatable-list';
+import { HeroSlideImageField } from './hero-slide-image-field';
+
+/** A blank slide, seeded when "Add slide" is clicked. */
+function newSlide(): HeroSlide {
+  return {
+    id: `slide-${Date.now()}`,
+    eyebrow: '',
+    title: '',
+    subtitle: '',
+    primaryCta: { label: '', href: '' },
+    secondaryCta: { label: '', href: '' },
+    backgroundImage: '',
+  };
+}
 
 /** Editor for the `homepage` singleton — hero, featured content, promo, newsletter, SEO. */
 export function HomepageEditor() {
@@ -35,7 +49,63 @@ export function HomepageEditor() {
     >
       {draft && (
         <>
-          <SectionCard title="Hero" description="The top band of the homepage.">
+          <SectionCard
+            title="Hero slides"
+            description="Auto-rotating slides at the top of the homepage (3–5 recommended). Leave empty to show the single hero band below instead."
+          >
+            <RepeatableList
+              items={draft.heroSlides}
+              onChange={(heroSlides) => patch({ heroSlides })}
+              newItem={newSlide}
+              addLabel="Add slide"
+              max={5}
+              emptyLabel="No slides yet — the hero band below will show instead."
+              renderRow={(slideItem, update) => (
+                <div className="flex flex-col gap-3">
+                  <Field label="Eyebrow" hint="Small pill above the title.">
+                    <Input
+                      value={slideItem.eyebrow}
+                      onChange={(e) => update({ ...slideItem, eyebrow: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Title" required>
+                    <Textarea
+                      value={slideItem.title}
+                      onChange={(e) => update({ ...slideItem, title: e.target.value })}
+                      className="min-h-16"
+                    />
+                  </Field>
+                  <Field label="Subtitle">
+                    <Textarea
+                      value={slideItem.subtitle}
+                      onChange={(e) => update({ ...slideItem, subtitle: e.target.value })}
+                    />
+                  </Field>
+                  <LinkFields
+                    idPrefix={`${slideItem.id}-primary`}
+                    labelText="Primary CTA"
+                    value={slideItem.primaryCta}
+                    onChange={(primaryCta) => update({ ...slideItem, primaryCta })}
+                  />
+                  <LinkFields
+                    idPrefix={`${slideItem.id}-secondary`}
+                    labelText="Secondary CTA"
+                    value={slideItem.secondaryCta}
+                    onChange={(secondaryCta) => update({ ...slideItem, secondaryCta })}
+                  />
+                  <HeroSlideImageField
+                    value={slideItem.backgroundImage}
+                    onChange={(backgroundImage) => update({ ...slideItem, backgroundImage })}
+                  />
+                </div>
+              )}
+            />
+          </SectionCard>
+
+          <SectionCard
+            title="Hero (fallback)"
+            description="Shown only when there are no hero slides above."
+          >
             <Field label="Eyebrow" htmlFor="hero-eyebrow" hint="Small pill above the title.">
               <Input
                 id="hero-eyebrow"

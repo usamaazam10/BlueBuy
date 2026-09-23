@@ -53,7 +53,7 @@ export const EMPTY_PRODUCT: ProductFormValues = {
   featured: false,
   active: true,
   tags: [],
-  specs: [{ id: 'spec-0', label: '', value: '' }],
+  specs: [],
   seoTitle: '',
   seoDescription: '',
   metaKeywords: '',

@@ -77,6 +77,16 @@ export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
 
 // ──────────────────────────────────── homepage ───────────────────────────────
 
+const heroSlideSchema = z.object({
+  id: z.string().trim().min(1),
+  eyebrow: z.string().trim().max(120).default(''),
+  title: z.string().trim().min(1, 'Slide title is required').max(200),
+  subtitle: z.string().trim().max(600).default(''),
+  primaryCta: cmsLinkSchema,
+  secondaryCta: cmsLinkSchema,
+  backgroundImage: imageUrlSchema,
+});
+
 export const homepageSchema = z.object({
   hero: z.object({
     eyebrow: z.string().trim().max(120).default(''),
@@ -86,6 +96,8 @@ export const homepageSchema = z.object({
     secondaryCta: cmsLinkSchema,
     backgroundImage: imageUrlSchema,
   }),
+  /** Auto-rotating hero carousel slides (3–5 recommended); empty falls back to `hero`. */
+  heroSlides: z.array(heroSlideSchema).max(5).default([]),
   featuredCategoryIds: z.array(z.string()).default([]),
   featuredProductIds: z.array(z.string()).default([]),
   promoBanner: z.object({

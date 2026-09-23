@@ -33,7 +33,9 @@ export function CtaBanner() {
             />
 
             <div className="relative mx-auto flex max-w-2xl flex-col items-center text-center">
-              <h2 className="text-3xl font-semibold text-balance sm:text-4xl">{promo.title}</h2>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                {promo.title}
+              </h2>
               {promo.subtitle && (
                 <p className="text-background/70 mt-4 max-w-lg text-pretty sm:text-lg">
                   {promo.subtitle}

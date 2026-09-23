@@ -34,7 +34,7 @@ export function Logo({ className, markOnly = false, surface = 'header', href = '
   const content = override ? (
     <span className={cn('inline-flex items-center', className)}>
       {/* eslint-disable-next-line @next/next/no-img-element -- remote CMS URL; unoptimized static export */}
-      <img src={override} alt={storeName} className="h-9 w-auto object-contain" />
+      <img src={override} alt={storeName} className="h-10 w-auto object-contain" />
     </span>
   ) : (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
@@ -43,12 +43,12 @@ export function Logo({ className, markOnly = false, surface = 'header', href = '
         src={BRAND_ASSETS.mark}
         alt=""
         aria-hidden="true"
-        className="size-8 shrink-0 rounded-lg"
-        width={32}
-        height={32}
+        className="size-9 shrink-0 rounded-lg"
+        width={36}
+        height={36}
       />
       {!markOnly && (
-        <span className="text-lg font-semibold tracking-tight">
+        <span className="text-xl font-semibold tracking-tight">
           {storeName === DEFAULT_SITE_SETTINGS.storeName ? (
             <>
               Blue<span className="text-brand">Buy</span>

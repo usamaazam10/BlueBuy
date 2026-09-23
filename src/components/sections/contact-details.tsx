@@ -61,7 +61,9 @@ export function ContactDetails() {
               {contact!.eyebrow}
             </span>
           )}
-          <h1 className="text-4xl font-semibold text-balance sm:text-5xl">{contact!.heading}</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+            {contact!.heading}
+          </h1>
           {contact!.subheading && (
             <p className="text-muted-foreground text-lg text-pretty">{contact!.subheading}</p>
           )}

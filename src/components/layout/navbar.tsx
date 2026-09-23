@@ -53,7 +53,7 @@ export function Navbar() {
             : 'bg-background/0 border-b border-transparent'
         )}
       >
-        <Container className="flex h-16 items-center justify-between gap-4">
+        <Container className="flex h-16 max-w-[90rem] items-center justify-between gap-4">
           <div className="flex items-center gap-2 md:gap-8">
             <button
               type="button"

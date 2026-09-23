@@ -39,7 +39,7 @@ export function CollectionShowcase() {
               <span className="bg-brand/10 text-brand flex size-12 items-center justify-center rounded-xl">
                 <Package className="size-6" aria-hidden />
               </span>
-              <h2 className="text-3xl font-semibold text-balance sm:text-4xl">
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
                 {BLUEBUY_COLLECTION.name}
               </h2>
               <p className="text-muted-foreground max-w-xl text-pretty">

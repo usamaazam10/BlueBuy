@@ -56,7 +56,7 @@ export default function AboutPage() {
               </span>
             </Reveal>
             <Reveal delay={0.05}>
-              <h1 className="mt-4 text-4xl font-semibold text-balance sm:text-6xl">
+              <h1 className="font-display mt-4 text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
                 A shop for products worth keeping
               </h1>
             </Reveal>
@@ -108,7 +108,9 @@ export default function AboutPage() {
         <Reveal>
           <div className="border-border grid grid-cols-1 gap-8 rounded-3xl border p-8 sm:p-14 lg:grid-cols-2 lg:items-center">
             <div className="flex flex-col gap-4">
-              <h2 className="text-3xl font-semibold text-balance">Ordering is straightforward</h2>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-balance">
+                Ordering is straightforward
+              </h2>
               <p className="text-muted-foreground text-pretty">
                 Add what you want to your cart, place the order with your name, contact number and
                 delivery address, and we&apos;ll confirm it with you directly. There is no online

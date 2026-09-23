@@ -15,14 +15,8 @@ import {
   Mail,
   ImageOff,
   Boxes,
-  ClipboardList,
-  Building2,
-  Receipt,
-  Wallet,
   ScrollText,
   Activity,
-  TrendingUp,
-  PieChart,
   BarChart3,
   Truck,
 } from 'lucide-react';
@@ -77,50 +71,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: Boxes,
     section: 'Operations',
     permission: 'inventory.view',
-  },
-  {
-    label: 'Purchases',
-    href: '/admin/purchases',
-    icon: ClipboardList,
-    section: 'Operations',
-    permission: 'purchases.view',
-  },
-  {
-    label: 'Suppliers',
-    href: '/admin/suppliers',
-    icon: Building2,
-    section: 'Operations',
-    permission: 'purchases.view',
-  },
-
-  // ── Money ──
-  {
-    label: 'Sales',
-    href: '/admin/sales',
-    icon: TrendingUp,
-    section: 'Money',
-    permission: 'sales.view',
-  },
-  {
-    label: 'Profitability',
-    href: '/admin/profit',
-    icon: PieChart,
-    section: 'Money',
-    permission: 'finance.view',
-  },
-  {
-    label: 'Expenses',
-    href: '/admin/expenses',
-    icon: Receipt,
-    section: 'Money',
-    permission: 'finance.view',
-  },
-  {
-    label: 'Cash flow',
-    href: '/admin/cash',
-    icon: Wallet,
-    section: 'Money',
-    permission: 'finance.view',
   },
 
   // ── CMS content ──
@@ -229,7 +179,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
 export const ADMIN_NAV_SECTIONS: AdminNavItem['section'][] = [
   'Catalog',
   'Operations',
-  'Money',
   'Content',
   'Store',
   'System',
