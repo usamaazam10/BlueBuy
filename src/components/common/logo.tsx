@@ -14,7 +14,19 @@ interface LogoProps {
   /** Which surface — picks the header/footer logo override before `logoUrl`. */
   surface?: 'header' | 'footer';
   href?: string | null;
+  /** `lg` is the storefront header lockup; `md` suits compact surfaces. */
+  size?: 'md' | 'lg';
 }
+
+const SIZES = {
+  md: { image: 'h-10', mark: 'size-9', px: 36, text: 'text-xl' },
+  lg: {
+    image: 'h-12 sm:h-14',
+    mark: 'size-10 sm:size-12',
+    px: 48,
+    text: 'text-2xl sm:text-[1.7rem]',
+  },
+} as const;
 
 /**
  * Brand lockup: the BlueBuy mark plus the wordmark.
@@ -25,7 +37,14 @@ interface LogoProps {
  * alongside the configured `storeName`. Because branding flows through settings,
  * changing the logo once in Site Settings updates it everywhere.
  */
-export function Logo({ className, markOnly = false, surface = 'header', href = '/' }: LogoProps) {
+export function Logo({
+  className,
+  markOnly = false,
+  surface = 'header',
+  href = '/',
+  size = 'md',
+}: LogoProps) {
+  const dims = SIZES[size];
   const { data: settings } = useSiteSettings();
   const storeName = settings?.storeName || DEFAULT_SITE_SETTINGS.storeName;
   const logos = resolveLogos(settings);
@@ -34,21 +53,21 @@ export function Logo({ className, markOnly = false, surface = 'header', href = '
   const content = override ? (
     <span className={cn('inline-flex items-center', className)}>
       {/* eslint-disable-next-line @next/next/no-img-element -- remote CMS URL; unoptimized static export */}
-      <img src={override} alt={storeName} className="h-10 w-auto object-contain" />
+      <img src={override} alt={storeName} className={cn(dims.image, 'w-auto object-contain')} />
     </span>
   ) : (
-    <span className={cn('inline-flex items-center gap-2.5', className)}>
+    <span className={cn('inline-flex items-center gap-2.5', size === 'lg' && 'gap-3', className)}>
       {/* eslint-disable-next-line @next/next/no-img-element -- committed brand asset; unoptimized static export */}
       <img
         src={BRAND_ASSETS.mark}
         alt=""
         aria-hidden="true"
-        className="size-9 shrink-0 rounded-lg"
-        width={36}
-        height={36}
+        className={cn(dims.mark, 'shrink-0 rounded-xl')}
+        width={dims.px}
+        height={dims.px}
       />
       {!markOnly && (
-        <span className="text-xl font-semibold tracking-tight">
+        <span className={cn(dims.text, 'font-display font-bold tracking-tight')}>
           {storeName === DEFAULT_SITE_SETTINGS.storeName ? (
             <>
               Blue<span className="text-brand">Buy</span>

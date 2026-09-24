@@ -38,7 +38,7 @@ export function FeaturedBrands() {
 
   return (
     // `id` anchors the footer's "Brands" link.
-    <section id="brands" className="bg-secondary/30 scroll-mt-24 py-20 sm:py-24">
+    <section id="brands" className="bg-secondary/30 scroll-mt-36 py-20 sm:py-24">
       <Container>
         <SectionTitle
           eyebrow="Brands"

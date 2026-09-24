@@ -81,7 +81,7 @@ export function CartView() {
         {/* Summary */}
         <motion.aside
           layout
-          className="bg-card border-border h-fit rounded-2xl border p-6 lg:sticky lg:top-24"
+          className="bg-card border-border h-fit rounded-2xl border p-6 lg:sticky lg:top-36"
         >
           <h2 className="mb-4 text-lg font-semibold">Order summary</h2>
           <CartSummary totals={totals}>

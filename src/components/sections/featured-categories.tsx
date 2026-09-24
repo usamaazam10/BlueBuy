@@ -2,24 +2,22 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
 import { useStoreCategories, useHomepage, useStoreProducts } from '@/hooks/queries';
 import { optimizeImageUrl } from '@/services/cloudinary';
 import { countBy } from '@/lib/product-counts';
 import { Container } from '@/components/layout/container';
-import { SectionTitle } from '@/components/common/section-title';
+import { ShelfHeader } from '@/components/common/shelf-header';
 import { Stagger, StaggerItem } from '@/components/common/motion';
 import { ErrorState } from '@/components/common/error-state';
 import { EmptyState } from '@/components/common/empty-state';
-import { cn } from '@/lib/utils';
 
-/** Skeleton tile matching the category card footprint. */
+/** Skeleton matching the round category tile footprint. */
 function CategoryTileSkeleton() {
   return (
-    <div
-      className="border-border bg-muted/40 aspect-square animate-pulse rounded-2xl border"
-      aria-hidden="true"
-    />
+    <div className="flex flex-col items-center gap-3" aria-hidden="true">
+      <div className="bg-muted/60 size-24 animate-pulse rounded-full sm:size-32 lg:size-36" />
+      <div className="bg-muted/60 h-3.5 w-20 animate-pulse rounded-full" />
+    </div>
   );
 }
 
@@ -45,43 +43,42 @@ export function FeaturedCategories() {
 
   return (
     // `id` anchors the footer/hero "Explore categories" links.
-    <section id="categories" className="scroll-mt-24 py-20 sm:py-24">
+    <section id="categories" className="scroll-mt-36 py-10 sm:py-12">
       <Container>
-        <SectionTitle
-          eyebrow="Browse"
+        <ShelfHeader
           title="Shop by category"
-          description="Find what you need across the categories in our catalogue."
+          description="Find what you need across our catalogue."
+          href="/products"
+          className="mb-7"
         />
 
         {isLoading ? (
-          <div className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-            {Array.from({ length: 6 }).map((_, index) => (
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-6 sm:gap-x-10">
+            {Array.from({ length: 5 }).map((_, index) => (
               <CategoryTileSkeleton key={index} />
             ))}
           </div>
         ) : isError ? (
-          <ErrorState className="mt-12" onRetry={refetch} />
+          <ErrorState onRetry={refetch} />
         ) : categories.length === 0 ? (
           <EmptyState
-            className="mt-12"
             title="No categories yet"
             description="Categories will appear here once they’re added."
           />
         ) : (
-          <Stagger className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <Stagger className="flex flex-wrap justify-center gap-x-5 gap-y-7 sm:gap-x-10">
             {categories.map((category) => {
               const count = countByCategory.get(category.id) ?? 0;
               const countLabel = `${count} ${count === 1 ? 'item' : 'items'}`;
-              const hasImage = Boolean(category.image);
               return (
                 <StaggerItem key={category.id}>
                   <Link
                     href={`/products?category=${category.slug}`}
-                    className="group border-border hover:shadow-foreground/5 focus-visible:ring-ring relative flex aspect-square flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:outline-none"
+                    className="group focus-visible:ring-ring flex w-24 flex-col items-center gap-3 rounded-2xl text-center outline-none focus-visible:ring-2 sm:w-32 lg:w-36"
                   >
-                    {hasImage ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary src under static export */}
+                    <span className="border-border bg-secondary group-hover:border-brand group-hover:shadow-brand/15 relative flex size-24 items-center justify-center overflow-hidden rounded-full border-2 transition-all duration-300 group-hover:shadow-lg sm:size-32 lg:size-36">
+                      {category.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary src under static export
                         <img
                           src={
                             category.imagePublicId
@@ -89,55 +86,26 @@ export function FeaturedCategories() {
                                   width: 400,
                                   height: 400,
                                 })
-                              : (category.image as string)
+                              : category.image
                           }
                           alt=""
                           aria-hidden
                           loading="lazy"
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         />
+                      ) : (
                         <span
                           aria-hidden
-                          className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"
+                          className="size-1/2 rounded-full transition-transform duration-500 group-hover:scale-110"
+                          style={{ backgroundColor: category.accent, opacity: 0.85 }}
                         />
-                      </>
-                    ) : (
-                      <>
-                        <span
-                          aria-hidden
-                          className="absolute -top-6 -right-6 size-20 rounded-full blur-2xl transition-transform duration-500 group-hover:scale-150"
-                          style={{ backgroundColor: category.accent, opacity: 0.25 }}
-                        />
-                        <span
-                          aria-hidden
-                          className="size-9 rounded-xl"
-                          style={{ backgroundColor: category.accent, opacity: 0.9 }}
-                        />
-                      </>
-                    )}
-                    <span
-                      className={cn(
-                        'relative mt-auto flex items-center justify-between',
-                        hasImage && 'text-white'
                       )}
-                    >
-                      <span className="flex flex-col">
-                        <span className="text-sm font-semibold">{category.name}</span>
-                        <span
-                          className={cn(
-                            'text-xs',
-                            hasImage ? 'text-white/80' : 'text-muted-foreground'
-                          )}
-                        >
-                          {countLabel}
-                        </span>
+                    </span>
+                    <span className="flex flex-col gap-0.5">
+                      <span className="group-hover:text-brand text-sm leading-tight font-semibold transition-colors sm:text-[0.94rem]">
+                        {category.name}
                       </span>
-                      <ArrowUpRight
-                        className={cn(
-                          'size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5',
-                          hasImage ? 'text-white/90' : 'text-muted-foreground'
-                        )}
-                      />
+                      <span className="text-muted-foreground text-xs">{countLabel}</span>
                     </span>
                   </Link>
                 </StaggerItem>

@@ -19,7 +19,7 @@ export function Container<T extends React.ElementType = 'div'>({
 }: ContainerProps<T>) {
   const Component = as ?? 'div';
   return (
-    <Component className={cn('container-px mx-auto w-full max-w-7xl', className)} {...props}>
+    <Component className={cn('container-px mx-auto w-full max-w-[88rem]', className)} {...props}>
       {children}
     </Component>
   );

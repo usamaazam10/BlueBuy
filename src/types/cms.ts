@@ -126,6 +126,24 @@ export interface HeroContent {
   backgroundImage: string;
 }
 
+/**
+ * One photo slide of the homepage hero carousel — an admin-uploaded banner
+ * image. Text is optional: banners that already carry their own artwork/copy
+ * render as a plain clickable photo, while a `title` adds an overlaid headline.
+ */
+export interface HeroBanner {
+  id: string;
+  /** Banner photo URL (Cloudinary upload or any https URL). Required to render. */
+  image: string;
+  /** Optional headline overlaid on the photo; empty shows the photo alone. */
+  title: string;
+  subtitle: string;
+  /** Button label; empty hides the button (the whole slide is still a link). */
+  ctaLabel: string;
+  /** Where the slide links to; empty = `/products`. */
+  href: string;
+}
+
 /** Promotional banner section (the storefront's CTA band). */
 export interface PromoBanner {
   enabled: boolean;
@@ -144,6 +162,12 @@ export interface HomepageSeo {
 /** Homepage content — collection: `homepage` (singleton). */
 export interface Homepage {
   hero: HeroContent;
+  /**
+   * Admin-uploaded photo slides for the auto-rotating hero carousel (3–5
+   * recommended). When empty, the carousel builds its slides from
+   * `heroProductIds` / featured products instead.
+   */
+  heroBanners: HeroBanner[];
   /**
    * Ordered product ids to showcase in the auto-rotating homepage hero
    * carousel (3–5 recommended). Empty = auto (products flagged `featured`,
@@ -175,6 +199,7 @@ export const DEFAULT_HOMEPAGE: Homepage = {
     secondaryCta: { label: 'Explore categories', href: '/#categories' },
     backgroundImage: '',
   },
+  heroBanners: [],
   heroProductIds: [],
   featuredCategoryIds: [],
   featuredProductIds: [],

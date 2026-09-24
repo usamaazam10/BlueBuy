@@ -1,16 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import { useStoreProducts, useHomepage } from '@/hooks/queries';
 import { Container } from '@/components/layout/container';
-import { SectionTitle } from '@/components/common/section-title';
+import { ShelfHeader } from '@/components/common/shelf-header';
 import { ProductGrid } from '@/components/product/product-grid';
 import { ProductGridSkeleton } from '@/components/product/product-grid-skeleton';
 import { ErrorState } from '@/components/common/error-state';
 import { EmptyState } from '@/components/common/empty-state';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export function FeaturedProducts() {
   const { data, isLoading, isError, refetch } = useStoreProducts();
@@ -24,52 +22,42 @@ export function FeaturedProducts() {
     if (ids.length > 0) {
       const byId = new Map(data.map((product) => [product.id, product]));
       const picked = ids.map((id) => byId.get(id)).filter((product) => product != null);
-      if (picked.length > 0) return picked.slice(0, 8);
+      if (picked.length > 0) return picked.slice(0, 10);
     }
     const featured = data.filter((product) => product.featured);
     const rest = data.filter((product) => !product.featured);
-    return [...featured, ...rest].slice(0, 8);
+    return [...featured, ...rest].slice(0, 10);
   }, [data, homepage?.featuredProductIds]);
 
   return (
-    <section className="bg-secondary/30 py-20 sm:py-24">
+    <section className="py-8 sm:py-10">
       <Container>
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <SectionTitle
-            align="left"
-            eyebrow="Featured"
-            title="Featured products"
-            description="A hand-picked selection from the BlueBuy catalogue."
-            className="items-center text-center sm:items-start sm:text-left"
-          />
-          <Button asChild variant="outline" className="hidden shrink-0 sm:inline-flex">
-            <Link href="/products">
-              View all <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </div>
+        <ShelfHeader
+          title="Featured products"
+          description="A hand-picked selection from the BlueBuy catalogue."
+          href="/products"
+          className="mb-6"
+        />
 
         {isLoading ? (
-          <ProductGridSkeleton count={8} className="mt-12" />
+          <ProductGridSkeleton count={8} />
         ) : isError ? (
-          <ErrorState className="mt-12" onRetry={refetch} />
+          <ErrorState onRetry={refetch} />
         ) : products.length === 0 ? (
           <EmptyState
-            className="mt-12"
             title="No products yet"
             description="Our catalogue is being stocked. Please check back soon."
           />
         ) : (
-          <ProductGrid products={products} className="mt-12" />
+          <ProductGrid
+            products={products}
+            className={cn(
+              'grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4',
+              // Five-up only when it fills whole rows (curated lists cap at 8).
+              products.length % 5 === 0 && 'xl:grid-cols-5'
+            )}
+          />
         )}
-
-        <div className="mt-10 flex justify-center sm:hidden">
-          <Button asChild variant="outline">
-            <Link href="/products">
-              View all products <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </div>
       </Container>
     </section>
   );

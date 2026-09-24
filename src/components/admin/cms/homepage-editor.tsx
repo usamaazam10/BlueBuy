@@ -4,11 +4,23 @@ import { Field, Input, Textarea, Select, Label, Switch } from '@/components/admi
 import { HomepageRepository } from '@/repositories';
 import { queryKeys } from '@/hooks/queries/keys';
 import { useStoreCategories, useStoreProducts } from '@/hooks/queries';
-import type { Homepage } from '@/types/cms';
+import type { Homepage, HeroBanner } from '@/types/cms';
 import { useCmsSingleton } from './use-cms-singleton';
 import { CmsFormShell, SectionCard } from './cms-form-shell';
 import { LinkFields } from './link-fields';
 import { RepeatableList } from './repeatable-list';
+import { HeroBannerImageField } from './hero-banner-image-field';
+
+function newHeroBanner(): HeroBanner {
+  return {
+    id: `banner-${Date.now().toString(36)}`,
+    image: '',
+    title: '',
+    subtitle: '',
+    ctaLabel: 'Shop now',
+    href: '/products',
+  };
+}
 
 /** Editor for the `homepage` singleton — hero, featured content, promo, newsletter, SEO. */
 export function HomepageEditor() {
@@ -36,8 +48,73 @@ export function HomepageEditor() {
       {draft && (
         <>
           <SectionCard
+            title="Hero slides (photos)"
+            description="Upload 3–5 wide banner photos for the auto-rotating slideshow at the top of the homepage. Slides without a photo are skipped. Leave empty to build the slideshow from products instead."
+          >
+            <RepeatableList
+              items={draft.heroBanners}
+              onChange={(heroBanners) => patch({ heroBanners })}
+              newItem={newHeroBanner}
+              addLabel="Add slide"
+              max={5}
+              emptyLabel="No photo slides yet — the slideshow uses the hero products below."
+              renderRow={(banner, update, index) => (
+                <div className="flex flex-col gap-3">
+                  <HeroBannerImageField
+                    value={banner.image}
+                    onChange={(image) => update({ ...banner, image })}
+                  />
+                  <Field
+                    label="Headline"
+                    htmlFor={`banner-title-${index}`}
+                    hint="Optional. Leave empty if the photo already has its own text."
+                  >
+                    <Input
+                      id={`banner-title-${index}`}
+                      value={banner.title}
+                      onChange={(e) => update({ ...banner, title: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Subtitle" htmlFor={`banner-subtitle-${index}`}>
+                    <Input
+                      id={`banner-subtitle-${index}`}
+                      value={banner.subtitle}
+                      onChange={(e) => update({ ...banner, subtitle: e.target.value })}
+                    />
+                  </Field>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field
+                      label="Button label"
+                      htmlFor={`banner-cta-${index}`}
+                      hint="Empty hides the button."
+                    >
+                      <Input
+                        id={`banner-cta-${index}`}
+                        value={banner.ctaLabel}
+                        onChange={(e) => update({ ...banner, ctaLabel: e.target.value })}
+                      />
+                    </Field>
+                    <Field
+                      label="Link"
+                      htmlFor={`banner-href-${index}`}
+                      hint="e.g. /products?category=toys"
+                    >
+                      <Input
+                        id={`banner-href-${index}`}
+                        value={banner.href}
+                        onChange={(e) => update({ ...banner, href: e.target.value })}
+                        placeholder="/products"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              )}
+            />
+          </SectionCard>
+
+          <SectionCard
             title="Hero products"
-            description="Products showcased in the auto-rotating carousel at the top of the homepage (3–5 recommended). Leave empty to auto-select featured products."
+            description="Used for the slideshow when no photo slides are uploaded (3–5 recommended), and for the “Top picks” panel beside it. Leave empty to auto-select featured products."
           >
             <RepeatableList
               items={draft.heroProductIds}

@@ -77,6 +77,15 @@ export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
 
 // ──────────────────────────────────── homepage ───────────────────────────────
 
+const heroBannerSchema = z.object({
+  id: z.string().trim().min(1),
+  image: z.union([z.url(), z.literal('')]),
+  title: z.string().trim().max(200).default(''),
+  subtitle: z.string().trim().max(400).default(''),
+  ctaLabel: z.string().trim().max(60).default(''),
+  href: hrefSchema,
+});
+
 export const homepageSchema = z.object({
   hero: z.object({
     eyebrow: z.string().trim().max(120).default(''),
@@ -86,6 +95,8 @@ export const homepageSchema = z.object({
     secondaryCta: cmsLinkSchema,
     backgroundImage: imageUrlSchema,
   }),
+  /** Photo slides for the hero carousel (3–5 recommended); empty = product slides. */
+  heroBanners: z.array(heroBannerSchema).max(5).default([]),
   /** Products shown in the auto-rotating hero carousel (3–5 recommended); empty = auto-curate. */
   heroProductIds: z.array(z.string()).max(5).default([]),
   featuredCategoryIds: z.array(z.string()).default([]),

@@ -3,263 +3,488 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Flame, Sparkles } from 'lucide-react';
 import { Container } from '@/components/layout/container';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ProductImage } from '@/components/product/product-image';
+import { AddToCartButton } from '@/components/product/add-to-cart-button';
 import { useStoreProducts, useHomepage } from '@/hooks/queries';
 import { useCurrency } from '@/hooks/use-currency';
+import { discountPercent, pickCurated, pickDeals } from '@/lib/product-deals';
 import { cn } from '@/lib/utils';
+import type { HeroBanner } from '@/types/cms';
 import type { StoreProduct } from '@/types/store';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 /** How long each slide stays up before auto-advancing. */
 const SLIDE_DURATION_MS = 5000;
-/** How many products the carousel shows at most. */
+/** How many slides the carousel shows at most. */
 const MAX_SLIDES = 5;
+/** Horizontal drag distance (px) that counts as a swipe. */
+const SWIPE_PX = 60;
 
-const BADGE_VARIANT = {
-  Sale: 'sale',
-  New: 'new',
-  Featured: 'featured',
-  Limited: 'limited',
-} as const;
+type Slide =
+  | { kind: 'banner'; id: string; banner: HeroBanner }
+  | { kind: 'product'; id: string; product: StoreProduct };
+
+/** Shared height of the carousel and the side panel, so the row stays even. */
+const HERO_HEIGHT = 'h-[16.5rem] sm:h-[21rem] lg:h-[26rem]';
 
 /**
- * Products to showcase, in order: the admin's curated `heroProductIds` when
- * set, otherwise `featured`-flagged products backfilled with the rest — so the
- * carousel always shows real, shoppable products rather than an empty banner.
+ * Cycles `0…count-1` every {@link SLIDE_DURATION_MS} unless `paused`, keeping
+ * the index in range if `count` shrinks. Returns the index, the last move's
+ * direction (for the slide animation) and a `go(delta)` stepper.
  */
-function resolveSlides(products: readonly StoreProduct[], heroProductIds: string[]) {
-  if (heroProductIds.length > 0) {
-    const byId = new Map(products.map((product) => [product.id, product]));
-    const picked = heroProductIds
-      .map((id) => byId.get(id))
-      .filter((product): product is StoreProduct => product != null);
-    if (picked.length > 0) return picked.slice(0, MAX_SLIDES);
-  }
-  const featured = products.filter((product) => product.featured);
-  const rest = products.filter((product) => !product.featured);
-  return [...featured, ...rest].slice(0, MAX_SLIDES);
-}
+function useAutoCycle(count: number, paused: boolean) {
+  const [[index, direction], setState] = React.useState<[number, number]>([0, 1]);
 
-export function Hero() {
-  const reduceMotion = useReducedMotion();
-  const { data: products } = useStoreProducts();
-  const { data: homepage } = useHomepage();
-  const { formatPrice } = useCurrency();
-
-  const slides = React.useMemo(
-    () => resolveSlides(products, homepage!.heroProductIds),
-    [products, homepage]
+  const go = React.useCallback(
+    (delta: number) => setState(([i]) => [(i + delta + count) % count, delta >= 0 ? 1 : -1]),
+    [count]
   );
-  const isCarousel = slides.length > 1;
 
-  const [index, setIndex] = React.useState(0);
-  const [paused, setPaused] = React.useState(false);
-  const product = slides[index] ?? slides[0];
-
-  // Auto-advance while there's more than one product and the visitor hasn't
-  // paused it by hovering/focusing the carousel.
   React.useEffect(() => {
-    if (!isCarousel || paused) return;
+    if (count < 2 || paused) return;
+    // Skip ticks while the tab is hidden: animation frames are suspended
+    // there, so queued slide transitions would pile up.
     const timer = window.setInterval(() => {
-      setIndex((i) => (i + 1) % slides.length);
+      if (!document.hidden) go(1);
     }, SLIDE_DURATION_MS);
     return () => window.clearInterval(timer);
-  }, [isCarousel, paused, slides.length]);
+  }, [count, paused, go, index]);
 
-  // Keep the index in range if the catalogue/curation shrinks while viewing.
   React.useEffect(() => {
-    if (index >= slides.length) setIndex(0);
-  }, [index, slides.length]);
+    if (count > 0 && index >= count) setState([0, 1]);
+  }, [index, count]);
 
-  const item = {
-    hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } },
-  };
-  const container = {
-    hidden: {},
-    show: { transition: { staggerChildren: 0.06 } },
-  };
+  return { index: count > 0 ? index % count : 0, direction, go, setState };
+}
 
-  // No products at all (a brand-new, unstocked store) — fall back to the
-  // plain text hero band instead of an empty product carousel.
-  if (!product) {
-    const hero = homepage!.hero;
-    return (
-      <section className="py-8 sm:py-10">
-        <Container>
-          <div className="border-border bg-secondary/20 relative overflow-hidden rounded-3xl border px-6 py-10 text-center sm:px-10 sm:py-14">
-            {hero.eyebrow && (
-              <span className="bg-background/70 text-foreground border-border mx-auto inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium backdrop-blur">
-                <Sparkles className="text-brand size-4" />
-                {hero.eyebrow}
-              </span>
-            )}
-            <h1 className="font-display mt-5 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              {hero.title}
-            </h1>
-            {hero.subtitle && (
-              <p className="text-muted-foreground mx-auto mt-4 max-w-xl text-pretty">
-                {hero.subtitle}
+/** An admin-uploaded photo slide: the image fills the frame; copy is optional. */
+function BannerSlide({ banner }: { banner: HeroBanner }) {
+  const hasCopy = Boolean(banner.title);
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- remote CMS URL; unoptimized static export */}
+      <img
+        src={banner.image}
+        alt={banner.title || 'Featured promotion'}
+        className="absolute inset-0 h-full w-full object-cover"
+        draggable={false}
+      />
+      {hasCopy && (
+        <>
+          <span
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-transparent"
+          />
+          <div className="relative flex h-full max-w-xl flex-col justify-center gap-3 p-6 text-white sm:gap-4 sm:p-10 lg:p-14">
+            <h2 className="font-display line-clamp-3 text-2xl leading-tight font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl">
+              {banner.title}
+            </h2>
+            {banner.subtitle && (
+              <p className="line-clamp-2 max-w-md text-sm text-white/85 sm:text-base">
+                {banner.subtitle}
               </p>
             )}
-            {hero.primaryCta.label && (
-              <Button asChild variant="brand" className="mt-6">
-                <Link href={hero.primaryCta.href || '/'}>
-                  {hero.primaryCta.label} <ArrowRight className="size-4" />
-                </Link>
-              </Button>
+            {banner.ctaLabel && (
+              <span className="text-brand-deep mt-1 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold shadow-lg transition-transform group-hover:translate-x-0.5">
+                {banner.ctaLabel} <ArrowRight className="size-4" />
+              </span>
             )}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * A product slide, used when no photo slides are uploaded: deep brand ground,
+ * copy on the left and the product photo framed on the right — framed rather
+ * than full-bleed, so marketing text printed on product photos never clashes.
+ */
+function ProductSlide({ product }: { product: StoreProduct }) {
+  const { formatPrice } = useCurrency();
+  const pct = discountPercent(product);
+
+  return (
+    <div className="bg-brand-deep relative flex h-full items-center gap-4 overflow-hidden p-5 pb-11 text-white sm:gap-8 sm:p-10 lg:p-14">
+      {/* Soft brand glows for depth. */}
+      <span
+        aria-hidden
+        className="bg-brand absolute -top-24 -right-10 size-80 rounded-full opacity-50 blur-3xl"
+      />
+      <span
+        aria-hidden
+        className="bg-brand absolute -bottom-32 left-1/4 size-72 rounded-full opacity-25 blur-3xl"
+      />
+
+      <div className="relative flex min-w-0 flex-1 flex-col items-start gap-2.5 sm:gap-4">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur">
+          <Sparkles className="size-3.5" aria-hidden />
+          {pct ? `Save ${pct}%` : (product.badge ?? 'Featured pick')}
+        </span>
+        <h2 className="font-display line-clamp-2 text-lg leading-tight font-bold tracking-tight text-balance sm:text-3xl lg:text-[2.25rem]">
+          {product.title}
+        </h2>
+        {product.shortDescription && (
+          <p className="hidden max-w-md text-sm text-white/75 sm:line-clamp-2 sm:text-base">
+            {product.shortDescription}
+          </p>
+        )}
+        <div className="flex flex-wrap items-baseline gap-x-2.5">
+          <span className="text-xl font-bold sm:text-3xl">{formatPrice(product.price)}</span>
+          {product.compareAtPrice && (
+            <span className="text-sm text-white/60 line-through sm:text-base">
+              {formatPrice(product.compareAtPrice)}
+            </span>
+          )}
+        </div>
+        <span className="text-brand-deep mt-1 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-lg transition-transform group-hover:translate-x-0.5 sm:px-5 sm:py-2.5">
+          Shop now <ArrowRight className="size-4" />
+        </span>
+      </div>
+
+      <div className="relative aspect-square h-[70%] shrink-0 overflow-hidden rounded-2xl bg-white shadow-2xl shadow-black/30 sm:h-[82%]">
+        <ProductImage
+          src={product.thumbnail}
+          alt=""
+          seed={product.slug}
+          accent={product.accent}
+          className="h-full w-full transition-transform duration-700 ease-out group-hover:scale-105"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The main auto-rotating slideshow (photo banners or product slides). */
+function HeroCarousel({ slides }: { slides: Slide[] }) {
+  const reduceMotion = useReducedMotion();
+  const [paused, setPaused] = React.useState(false);
+  const { index, direction, go, setState } = useAutoCycle(slides.length, paused);
+  const dragged = React.useRef(false);
+  const slide = slides[index];
+  const isCarousel = slides.length > 1;
+
+  const variants = {
+    enter: (dir: number) => (reduceMotion ? { opacity: 0 } : { x: dir > 0 ? '100%' : '-100%' }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => (reduceMotion ? { opacity: 0 } : { x: dir > 0 ? '-100%' : '100%' }),
+  };
+
+  const href =
+    slide.kind === 'banner' ? slide.banner.href || '/products' : `/product/${slide.product.slug}`;
+  const label =
+    slide.kind === 'banner'
+      ? slide.banner.title || slide.banner.ctaLabel || 'View promotion'
+      : `Shop ${slide.product.title}`;
+
+  return (
+    <div
+      className={cn(
+        'group/carousel bg-muted relative overflow-hidden rounded-3xl shadow-sm',
+        HERO_HEIGHT
+      )}
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Featured"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <AnimatePresence initial={false} custom={direction}>
+        <motion.div
+          key={slide.id}
+          custom={direction}
+          variants={variants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: reduceMotion ? 0.3 : 0.7, ease: EASE }}
+          drag={isCarousel ? 'x' : false}
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.25}
+          onDragStart={() => {
+            dragged.current = true;
+          }}
+          onDragEnd={(_, info) => {
+            if (info.offset.x < -SWIPE_PX) go(1);
+            else if (info.offset.x > SWIPE_PX) go(-1);
+            // Let the click that ends a drag fall through harmlessly.
+            window.setTimeout(() => (dragged.current = false), 0);
+          }}
+          className="absolute inset-0"
+        >
+          <Link
+            href={href}
+            aria-label={label}
+            draggable={false}
+            onClickCapture={(e) => {
+              if (dragged.current) e.preventDefault();
+            }}
+            className="group focus-visible:ring-ring block h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset"
+          >
+            {slide.kind === 'banner' ? (
+              <BannerSlide banner={slide.banner} />
+            ) : (
+              <ProductSlide product={slide.product} />
+            )}
+          </Link>
+        </motion.div>
+      </AnimatePresence>
+
+      {isCarousel && (
+        <>
+          <button
+            type="button"
+            onClick={() => go(-1)}
+            aria-label="Previous slide"
+            className="text-brand-deep focus-visible:ring-ring absolute top-1/2 left-3 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 opacity-0 shadow-md transition-opacity outline-none group-hover/carousel:opacity-100 hover:bg-white focus-visible:opacity-100 focus-visible:ring-2 sm:flex"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => go(1)}
+            aria-label="Next slide"
+            className="text-brand-deep focus-visible:ring-ring absolute top-1/2 right-3 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 opacity-0 shadow-md transition-opacity outline-none group-hover/carousel:opacity-100 hover:bg-white focus-visible:opacity-100 focus-visible:ring-2 sm:flex"
+          >
+            <ChevronRight className="size-5" />
+          </button>
+
+          <div
+            className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1.5 backdrop-blur sm:bottom-4"
+            role="tablist"
+            aria-label="Choose slide"
+          >
+            {slides.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={i === index}
+                aria-label={`Slide ${i + 1} of ${slides.length}`}
+                onClick={() => setState([i, i >= index ? 1 : -1])}
+                className={cn(
+                  'h-2 rounded-full transition-all duration-300',
+                  i === index ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/80'
+                )}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Side panel (desktop): the store's biggest current savings, one at a time,
+ * rotating on its own — the "top deals" column of a marketplace homepage.
+ */
+function TopDealsPanel({ products }: { products: StoreProduct[] }) {
+  const [paused, setPaused] = React.useState(false);
+  const { index, go } = useAutoCycle(products.length, paused);
+  const { formatPrice } = useCurrency();
+  const reduceMotion = useReducedMotion();
+  const product = products[index];
+  const pct = discountPercent(product);
+  const href = `/product/${product.slug}`;
+
+  return (
+    <aside
+      className={cn(
+        'border-border bg-card hidden flex-col overflow-hidden rounded-3xl border shadow-sm lg:flex',
+        HERO_HEIGHT
+      )}
+      aria-label="Top deals"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div className="flex items-center justify-between px-5 pt-4 pb-3">
+        <h2 className="font-display flex items-center gap-2 text-base font-bold tracking-tight">
+          <Flame className="text-destructive size-[18px]" aria-hidden />
+          Top deals
+        </h2>
+        {products.length > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => go(-1)}
+              aria-label="Previous deal"
+              className="hover:bg-secondary text-muted-foreground hover:text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => go(1)}
+              aria-label="Next deal"
+              className="hover:bg-secondary text-muted-foreground hover:text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={product.id}
+          initial={reduceMotion ? false : { opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
+          transition={{ duration: 0.3, ease: EASE }}
+          className="flex min-h-0 flex-1 flex-col gap-3 px-5 pb-5"
+        >
+          <Link
+            href={href}
+            tabIndex={-1}
+            className="group bg-secondary/50 relative min-h-0 flex-1 overflow-hidden rounded-2xl"
+          >
+            <ProductImage
+              src={product.thumbnail}
+              alt={product.title}
+              seed={product.slug}
+              accent={product.accent}
+              className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
+            />
+            {pct && (
+              <span className="bg-destructive text-destructive-foreground absolute top-3 left-3 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm">
+                -{pct}%
+              </span>
+            )}
+          </Link>
+          <div className="flex flex-col gap-1">
+            <Link
+              href={href}
+              className="hover:text-brand line-clamp-2 text-sm leading-snug font-semibold transition-colors"
+            >
+              {product.title}
+            </Link>
+            <div className="flex items-baseline gap-2">
+              <span className="text-brand text-lg font-bold">{formatPrice(product.price)}</span>
+              {product.compareAtPrice && (
+                <span className="text-muted-foreground text-xs line-through">
+                  {formatPrice(product.compareAtPrice)}
+                </span>
+              )}
+            </div>
+          </div>
+          <AddToCartButton
+            product={product}
+            outOfStock={product.stock <= 0}
+            variant="brand"
+            size="sm"
+            className="w-full"
+          />
+        </motion.div>
+      </AnimatePresence>
+    </aside>
+  );
+}
+
+/**
+ * Homepage hero, marketplace style: a large auto-rotating slideshow of the
+ * admin's uploaded photo banners (Admin → CMS → Homepage → Hero slides) — or,
+ * when none are uploaded, of curated products — beside a rotating "Top deals"
+ * panel on desktop.
+ */
+export function Hero() {
+  const { data: products, isLoading } = useStoreProducts();
+  const { data: homepage } = useHomepage();
+
+  const slides = React.useMemo<Slide[]>(() => {
+    const banners = (homepage.heroBanners ?? []).filter((banner) => banner.image);
+    if (banners.length > 0) {
+      return banners
+        .slice(0, MAX_SLIDES)
+        .map((banner) => ({ kind: 'banner', id: banner.id, banner }));
+    }
+    return pickCurated(products, homepage.heroProductIds, MAX_SLIDES).map((product) => ({
+      kind: 'product',
+      id: product.id,
+      product,
+    }));
+  }, [products, homepage]);
+
+  // Deals first; fall back to curated picks for a catalogue with no sales on.
+  const sideProducts = React.useMemo(() => {
+    const deals = pickDeals(products, 6);
+    return deals.length > 0 ? deals : pickCurated(products, homepage.heroProductIds, 6);
+  }, [products, homepage.heroProductIds]);
+
+  // Still fetching the catalogue — hold the hero's footprint instead of
+  // flashing the text fallback.
+  if (slides.length === 0 && isLoading) {
+    return (
+      <section className="pt-5 pb-2 sm:pt-6">
+        <Container>
+          <div
+            className={cn('bg-muted/60 animate-pulse rounded-3xl', HERO_HEIGHT)}
+            aria-hidden="true"
+          />
+        </Container>
+      </section>
+    );
+  }
+
+  // No products and no banners at all (a brand-new, unstocked store) — the
+  // plain text hero band.
+  if (slides.length === 0) {
+    const hero = homepage.hero;
+    return (
+      <section className="pt-5 pb-2 sm:pt-6">
+        <Container>
+          <div className="bg-brand-deep relative overflow-hidden rounded-3xl px-6 py-14 text-center text-white sm:px-10 sm:py-20">
+            <span
+              aria-hidden
+              className="bg-brand absolute -top-24 -right-10 size-80 rounded-full opacity-50 blur-3xl"
+            />
+            <div className="relative">
+              {hero.eyebrow && (
+                <span className="mx-auto inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-medium backdrop-blur">
+                  <Sparkles className="size-4" />
+                  {hero.eyebrow}
+                </span>
+              )}
+              <h1 className="font-display mt-5 text-3xl font-bold tracking-tight text-balance sm:text-5xl">
+                {hero.title}
+              </h1>
+              {hero.subtitle && (
+                <p className="mx-auto mt-4 max-w-xl text-pretty text-white/80">{hero.subtitle}</p>
+              )}
+              {hero.primaryCta.label && (
+                <Button asChild className="text-brand-deep mt-7 bg-white hover:bg-white/90">
+                  <Link href={hero.primaryCta.href || '/'}>
+                    {hero.primaryCta.label} <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              )}
+            </div>
           </div>
         </Container>
       </section>
     );
   }
 
-  const href = `/product/${product.slug}`;
-
   return (
-    <section className="py-6 sm:py-8">
+    <section className="pt-5 pb-2 sm:pt-6">
+      {/* The storefront's single h1, for SEO and screen readers. */}
+      <h1 className="sr-only">{homepage.hero.title}</h1>
       <Container>
         <div
-          className="border-border bg-secondary/20 relative overflow-hidden rounded-3xl border p-6 sm:p-8 lg:p-10"
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
-          onFocus={() => setPaused(true)}
-          onBlur={() => setPaused(false)}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={product.id}
-              variants={reduceMotion ? undefined : container}
-              initial={reduceMotion ? false : 'hidden'}
-              animate="show"
-              exit={reduceMotion ? undefined : { opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 items-center gap-6 sm:grid-cols-[1fr_auto] sm:gap-8"
-            >
-              {/* Text */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <motion.span
-                  variants={item}
-                  className="bg-background/80 text-foreground border-border inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
-                >
-                  <Sparkles className="text-brand size-3.5" />
-                  {product.badge ?? 'Featured'}
-                </motion.span>
-
-                <motion.h1 variants={item}>
-                  <Link
-                    href={href}
-                    className="font-display hover:text-brand line-clamp-2 text-xl font-semibold tracking-tight text-balance transition-colors sm:text-2xl lg:text-3xl"
-                  >
-                    {product.title}
-                  </Link>
-                </motion.h1>
-
-                {product.shortDescription && (
-                  <motion.p
-                    variants={item}
-                    className="text-muted-foreground hidden max-w-md text-sm text-pretty sm:line-clamp-2 md:block"
-                  >
-                    {product.shortDescription}
-                  </motion.p>
-                )}
-
-                <motion.div variants={item} className="flex items-baseline gap-2">
-                  <span className="text-lg font-semibold sm:text-xl">
-                    {formatPrice(product.price)}
-                  </span>
-                  {product.compareAtPrice && (
-                    <span className="text-muted-foreground text-sm line-through">
-                      {formatPrice(product.compareAtPrice)}
-                    </span>
-                  )}
-                </motion.div>
-
-                <motion.div variants={item}>
-                  <Button asChild variant="brand" size="sm">
-                    <Link href={href}>
-                      Shop now <ArrowRight className="size-4" />
-                    </Link>
-                  </Button>
-                </motion.div>
-              </div>
-
-              {/* Product image, contained — not a full-bleed background, so it
-                  never fights with any text printed on the photo itself. */}
-              <motion.div variants={item} className="mx-auto shrink-0">
-                <Link
-                  href={href}
-                  className="group focus-visible:ring-ring relative block size-32 outline-none focus-visible:ring-2 sm:size-40 lg:size-48"
-                >
-                  <div className="bg-card border-border relative h-full w-full overflow-hidden rounded-2xl border">
-                    <ProductImage
-                      src={product.thumbnail}
-                      alt={product.title}
-                      seed={product.slug}
-                      accent={product.accent}
-                      className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
-                    />
-                  </div>
-                  {product.badge && (
-                    <Badge
-                      variant={BADGE_VARIANT[product.badge]}
-                      className="absolute top-2 left-2 shadow-sm"
-                    >
-                      {product.badge}
-                    </Badge>
-                  )}
-                </Link>
-              </motion.div>
-            </motion.div>
-          </AnimatePresence>
-
-          {isCarousel && (
-            <div className="mt-6 flex items-center justify-center gap-4 sm:justify-start">
-              <button
-                type="button"
-                onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-                aria-label="Previous product"
-                className="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-ring hidden size-8 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
-              >
-                <ArrowLeft className="size-4" />
-              </button>
-
-              <div
-                className="flex items-center gap-1.5"
-                role="tablist"
-                aria-label="Featured products"
-              >
-                {slides.map((s, i) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={i === index}
-                    aria-label={`Show ${s.title}`}
-                    onClick={() => setIndex(i)}
-                    className={cn(
-                      'h-1.5 rounded-full transition-all',
-                      i === index ? 'bg-brand w-5' : 'bg-border hover:bg-muted-foreground w-1.5'
-                    )}
-                  />
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIndex((i) => (i + 1) % slides.length)}
-                aria-label="Next product"
-                className="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-ring hidden size-8 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 sm:flex"
-              >
-                <ArrowRight className="size-4" />
-              </button>
-            </div>
+          className={cn(
+            'grid grid-cols-1 gap-4',
+            sideProducts.length > 0 &&
+              'lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]'
           )}
+        >
+          <HeroCarousel slides={slides} />
+          {sideProducts.length > 0 && <TopDealsPanel products={sideProducts} />}
         </div>
       </Container>
     </section>
